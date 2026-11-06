@@ -346,6 +346,7 @@ def test_list_scenarios_as_text(capsys: pytest.CaptureFixture[str]) -> None:
         "duplicate-business-key",
         "invalid-enum",
         "null-critical-column",
+        "orphaned-foreign-key",
     ]
 
 
@@ -360,6 +361,7 @@ def test_list_scenarios_as_json_is_only_json(capsys: pytest.CaptureFixture[str])
         "duplicate-business-key",
         "invalid-enum",
         "null-critical-column",
+        "orphaned-foreign-key",
     ]
 
 
