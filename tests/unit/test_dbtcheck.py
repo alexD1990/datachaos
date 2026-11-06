@@ -71,6 +71,8 @@ def _results(tmp_path: Path, name: str, **statuses: str) -> Path:
         (["success", "skipped"], "skipped"),
         (["skipped", "error"], "error"),
         (["pass", "warn"], "warn"),
+        (["warn", "pass"], "warn"),
+        (["skipped", "success"], "skipped"),
     ],
 )
 def test_merge_status(statuses: list[str], expected: str) -> None:
@@ -169,6 +171,34 @@ def test_a_baseline_needs_every_node_to_pass(tmp_path: Path, baseline: tuple[Pat
     bad = _results(tmp_path, "bad", test__shop__a="fail", model__shop__b="success")
     result = check(baseline[0], [bad], baseline[1])
     assert not result.ok
+    assert [node.unique_id for node in result.unexpected] == ["test.shop.a"]
+
+
+def test_every_pattern_of_an_expectation_must_be_detected(tmp_path: Path) -> None:
+    content = CONFIG.replace(
+        '["test.shop.assert_unique*"]', '["test.shop.assert_unique*", "test.shop.second*"]'
+    )
+    config = tmp_path / "chaos.yml"
+    config.write_bytes(content.encode())
+    out = tmp_path / "out"
+    engine.run(load_config(config), out)
+    both = _results(tmp_path, "b", test__shop__assert_unique="fail", test__shop__second="fail")
+    assert check(out, [both], config).ok
+    one = _results(tmp_path, "o", test__shop__assert_unique="fail", test__shop__second="pass")
+    result = check(out, [one], config)
+    assert not result.ok
+    assert [item.detected for item in result.expectations] == [True, False]
+
+
+def test_a_run_with_scenarios_but_no_expectations_is_no_baseline(tmp_path: Path) -> None:
+    head, _, _ = CONFIG.partition("expectations:")
+    config = tmp_path / "chaos.yml"
+    config.write_bytes(head.encode())
+    out = tmp_path / "out"
+    engine.run(load_config(config), out)
+    result = check(out, [_results(tmp_path, "r", test__shop__a="fail")], config)
+    assert not result.is_baseline
+    assert result.ok
     assert [node.unique_id for node in result.unexpected] == ["test.shop.a"]
 
 
