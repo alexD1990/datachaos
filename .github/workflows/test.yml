@@ -34,3 +34,17 @@ jobs:
         run: mypy
       - name: Tests
         run: pytest
+
+  dbt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev,dbt]"
+      - name: Demo against real dbt
+        run: pytest -m dbt
+        env:
+          DATACHAOS_REQUIRE_DBT: "1"

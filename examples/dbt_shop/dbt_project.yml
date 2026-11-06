@@ -1,0 +1,19 @@
+name: dbt_shop
+version: "1.0"
+config-version: 2
+profile: dbt_shop
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+vars:
+  landing: landing
+
+models:
+  dbt_shop:
+    staging:
+      # Tables, so that a failing cast shows up here and not in the first model downstream.
+      +materialized: table
+    marts:
+      +materialized: table

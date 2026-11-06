@@ -1,0 +1,15 @@
+version: 1
+seed: 2026
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 40
+  orders: 400
+  batches: 5
+  batch_interval: 1d
+scenarios:
+  - name: schema-drift
+    table: orders
+    params: {operation: rename_column, column: source_system, new_name: channel, from_batch: 2}
+expectations:
+  - scenario: schema-drift
+    failing_tests: ["test.dbt_shop.not_null_stg_orders_source_system*"]

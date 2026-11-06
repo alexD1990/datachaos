@@ -4,9 +4,8 @@ DataChaos will generate a synthetic, deterministic dataset delivered in batches,
 controlled data quality faults, keep a ledger of exactly what changed, and check whether your
 pipeline's dbt tests caught the faults.
 
-**Status:** early development. The clean baseline dataset can be generated, all eight scenarios can
-inject faults, and runs can be validated, reported on and landed batch by batch. Checking dbt results
-is not implemented yet.
+**Status:** early development, not yet on PyPI. The whole loop works: generate, inject, land batch by
+batch, run dbt, and check whether the pipeline caught the faults.
 
 ## Install
 
@@ -206,10 +205,71 @@ Data files go to `landing/<table>/` and schema files to `landing/schemas/<table>
 deletes or overwrites: an equal file is skipped, and a different one stops it with exit code 2 before
 anything is copied.
 
+## Did the pipeline catch it?
+
+`datachaos check-dbt` compares dbt results with the `expectations` in a config:
+
+```yaml
+expectations:
+  - scenario: duplicate-business-key
+    failing_tests: ["test.dbt_shop.assert_raw_orders_unique_per_version*"]
+```
+
+```bash
+datachaos check-dbt --run chaos --config chaos.yml \
+  --run-results run_batch_0.json --run-results run_batch_1.json --run-results test.json
+```
+
+Give `--run-results` once per dbt call, and they are merged: a node failed if it has status `fail` or
+`error` in any of them. This matters: after a model error in `dbt run`, `dbt test` runs on the old
+table, and may pass. Exit code 1 means that an expected failure did not happen, and a pattern that
+matches no node is a mistake in the config, with exit code 2. Other failures are reported as
+unexpected. A run without scenarios expects every node to pass.
+
+### The demo
+
+`examples/dbt_shop` is a dbt-duckdb project with vulnerable and robust incremental models. The demo
+runs the whole loop for a baseline and every scenario:
+
+```console
+$ pip install -e ".[dev,dbt]"
+$ python examples/dbt_shop/run_demo.py
+config                    result  caught by
+baseline                  ok      -
+duplicate_business_key    ok      assert_raw_orders_unique_per_version
+historical_update         ok      assert_daily_orders_event_watermark_matches_full
+invalid_enum              ok      accepted_values_stg_orders_currency
+late_customers            ok      assert_fct_orders_incremental_matches_full
+late_orders               ok      assert_daily_orders_event_watermark_matches_full
+null_critical_column      ok      not_null_stg_orders_customer_id
+orphaned_deleted_parent   ok      relationships_stg_orders_customer_id
+orphaned_nonexistent      ok      relationships_stg_orders_customer_id
+out_of_order_events       ok      assert_order_status_by_ingestion_matches_event_time
+schema_drift_change_type  ok      model stg_orders, relationships_stg_order_events_order_id
+schema_drift_rename       ok      not_null_stg_orders_source_system
+```
+
+It runs `dbt run` after each `land --upto-batch k` and `dbt test` once at the end, since `dbt build`
+per batch would skip models downstream of a failing test and leave the incremental models in another
+state. A config passes only if what it expects was caught and nothing else failed, so a robust model
+failing under a scenario fails the demo.
+
+Sources read everything as text, with `all_varchar=true` and `union_by_name=true`, and staging casts
+to the right types. That decides what a schema change looks like:
+
+| `schema-drift` | What happens in this pipeline |
+|---|---|
+| `change_type` to `string_comma_decimal` | Cast error in the staging model, from that batch on |
+| `rename_column` or `drop_column` | The old column is NULL in new rows, so `not_null` fails |
+| `rename_column` from batch 0 | The column never exists, so the staging model fails |
+| `add_column`, `change_type` to `string` | Nothing: staging selects fixed columns, and the text is the same |
+
+The last row is not in the demo, because nothing can be expected to fail.
+
 ## Machine-readable output
 
-`--output json` on `generate`, `run`, `inject`, `validate`, `report`, `land`, `list-scenarios` and
-`describe` writes one JSON document with `schema_version` and `tool_version` to stdout, and warnings
+`--output json` on `generate`, `run`, `inject`, `validate`, `report`, `land`, `check-dbt`,
+`list-scenarios` and `describe` writes one JSON document with `schema_version` and `tool_version` to stdout, and warnings
 to stderr.
 
 ## Development
@@ -218,6 +278,7 @@ to stderr.
 ruff check && ruff format --check && mypy && pytest
 DATACHAOS_UPDATE_GOLDEN=1 pytest tests/golden   # only when a change in output is intended
 python -m datachaos._docs                       # regenerate docs/scenarios.md
+pytest -m dbt                                   # the demo against real dbt, needs .[dev,dbt]
 ```
 
 ## License

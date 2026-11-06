@@ -1,0 +1,8 @@
+version: 1
+seed: 2026
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 40
+  orders: 400
+  batches: 5
+  batch_interval: 1d

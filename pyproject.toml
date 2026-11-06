@@ -36,6 +36,8 @@ Issues = "https://github.com/alexD1990/datachaos/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff==0.16.9", "mypy==2.3.1", "jsonschema>=4.18", "types-PyYAML"]
+# Only for the demo in examples/dbt_shop. dbt v2 is another program, so stay on v1.
+dbt = ["dbt-core>=1.10,<2", "dbt-duckdb>=1.10,<2"]
 
 [project.scripts]
 datachaos = "datachaos.cli:main"

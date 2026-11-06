@@ -1,0 +1,15 @@
+version: 1
+seed: 2026
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 40
+  orders: 400
+  batches: 5
+  batch_interval: 1d
+scenarios:
+  - name: invalid-enum
+    table: orders
+    params: {column: currency, count: 10}
+expectations:
+  - scenario: invalid-enum
+    failing_tests: ["test.dbt_shop.accepted_values_stg_orders_currency*"]

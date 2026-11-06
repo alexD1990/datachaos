@@ -1,0 +1,15 @@
+version: 1
+seed: 2026
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 40
+  orders: 400
+  batches: 5
+  batch_interval: 1d
+scenarios:
+  - name: orphaned-foreign-key
+    table: orders
+    params: {count: 10}
+expectations:
+  - scenario: orphaned-foreign-key
+    failing_tests: ["test.dbt_shop.relationships_stg_orders_customer_id*"]

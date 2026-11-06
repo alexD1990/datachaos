@@ -8,3 +8,8 @@ dist/
 .ruff_cache/
 .mypy_cache/
 .mcp/
+CLAUDE.MD
+examples/dbt_shop/target/
+examples/dbt_shop/logs/
+examples/dbt_shop/*.duckdb
+examples/dbt_shop/.user.yml
