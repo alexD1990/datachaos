@@ -28,7 +28,7 @@ from datachaos.model.manifest import (
     TableCounts,
     compute_content_sha256,
 )
-from datachaos.model.schema import Column, ColumnType, Role, TableSchema
+from datachaos.model.schema import Column, ColumnType, TableSchema
 from datachaos.model.table import Batch, Row, Table, Value
 from datachaos.rng import Rng, derive_seed
 from datachaos.scenarios import SCENARIOS
@@ -127,6 +127,8 @@ def resolve_scenarios(config: RunConfig, baseline: Dataset) -> tuple[_Planned, .
         schemas={name: table.schema_by_batch for name, table in baseline.tables.items()},
     )
     planned = []
+    used: list[tuple[int, Scenario, str, str]] = []
+    drifted: dict[str, int] = {}
     for index, item in enumerate(config.scenarios):
         if item.name not in SCENARIOS:
             raise DataChaosError(
@@ -136,11 +138,38 @@ def resolve_scenarios(config: RunConfig, baseline: Dataset) -> tuple[_Planned, .
         scenario = SCENARIOS[item.name]
         try:
             params = scenario.resolve(ctx, item.table, item.params)
-            ctx = replace(ctx, schemas=scenario.schemas_after(ctx, item.table, params))
         except FieldError as exc:
-            raise DataChaosError(f"scenarios[{index}].{exc.field}: {exc.message}") from exc
+            note = ""
+            if item.table in drifted:
+                note = f"; schema-drift in scenarios[{drifted[item.table]}] changed this table"
+            raise DataChaosError(f"scenarios[{index}].{exc.field}: {exc.message}{note}") from exc
+        for column in sorted(scenario.columns_used(ctx, item.table, params)):
+            _check_conflict(index, scenario, item.table, column, used)
+            used.append((index, scenario, item.table, column))
+        ctx = replace(ctx, schemas=scenario.schemas_after(ctx, item.table, params))
+        if scenario.spec.changes_schema:
+            drifted[item.table] = index
         planned.append(_Planned(index, scenario, item.table, params))
     return tuple(planned)
+
+
+def _check_conflict(
+    index: int,
+    scenario: Scenario,
+    table: str,
+    column: str,
+    used: list[tuple[int, Scenario, str, str]],
+) -> None:
+    """Schema-drift cannot be combined with another scenario on the same column, in any order."""
+    for other_index, other, other_table, other_column in used:
+        if (other_table, other_column) != (table, column):
+            continue
+        if scenario.spec.changes_schema or other.spec.changes_schema:
+            raise DataChaosError(
+                f"scenarios[{index}].params: {scenario.spec.name} and "
+                f"scenarios[{other_index}] ({other.spec.name}) both use {table}.{column}, "
+                "and schema-drift cannot be combined with another scenario on the same column"
+            )
 
 
 def _apply_scenarios(
@@ -219,7 +248,7 @@ def _not_touched(dataset: Dataset, table: str, ledger: list[LedgerEntry]) -> Cal
     touched_groups = [entry.group for entry in earlier if entry.group is not None]
     groups = {_key_identity(group) for group in touched_groups}
     group_columns = sorted({tuple(sorted(group)) for group in touched_groups})
-    schema = dataset.tables[table].schema_by_batch[0]
+    schema = dataset.tables[table].stable_schema
 
     def eligible(row: Row) -> bool:
         if row.rid in rids or _key_identity(key_of(row, schema)) in keys:
@@ -277,7 +306,7 @@ def partition(table: Table, dataset: Dataset) -> tuple[Batch, ...]:
     interval = parse_duration(dataset.batch_interval)
     start = window_start(parse_timestamp(dataset.as_of), dataset.batches, interval)
     by_batch: list[list[Row]] = [[] for _ in range(dataset.batches)]
-    column = table.schema_by_batch[0].column_with_role(Role.INGESTION_TIME).name
+    column = table.ingestion_column
     for row in table.rows:
         index = batch_index(parse_timestamp(str(row.values[column])), start, interval)
         if not 0 <= index < dataset.batches:
@@ -346,7 +375,10 @@ def _write_combined(
 ) -> list[FileEntry]:
     schema = batches[0].schema
     if any(batch.schema != schema for batch in batches):
-        raise DataChaosError(f"cannot combine {table}: its schema differs between batches")
+        raise DataChaosError(
+            f"cannot combine {table}: its schema differs between batches, "
+            "so leave out --combined (output.combined)"
+        )
     rows = [row for batch in batches for row in batch.rows]
     return [
         _write_rows(root, f"data/{table}.{file_format}", file_format, schema, rows)

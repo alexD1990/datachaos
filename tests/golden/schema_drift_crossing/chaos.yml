@@ -1,0 +1,24 @@
+version: 1
+seed: 20260112
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 20
+  orders: 50
+  batches: 3
+  batch_interval: 1d
+output:
+  formats: [csv]
+  emit_row_ids: true
+scenarios:
+  - name: schema-drift
+    table: orders
+    params: {operation: change_type, column: amount, to: string_comma_decimal, from_batch: 1}
+  - name: duplicate-business-key
+    table: orders
+    params: {count: 4, same_batch: false}
+  - name: late-arriving-data
+    table: orders
+    params: {count: 4, delay_min: 1d, delay_max: 1d}
+  - name: historical-update
+    table: orders
+    params: {older_than: 1d, count: 4, columns: [status]}

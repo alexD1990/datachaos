@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import replace
+from typing import cast
 
 from datachaos.errors import FieldError
 from datachaos.model.ledger import LedgerEntry
@@ -13,6 +14,7 @@ from datachaos.scenarios.base import (
     BaseScenario,
     ParamSpec,
     ResolveContext,
+    ResolvedParams,
     ScenarioContext,
     ScenarioOutcome,
     ScenarioSpec,
@@ -68,10 +70,15 @@ class NullCriticalColumn(BaseScenario):
             if column.name == name and column.role is Role.KEY and not resolved["allow_key"]:
                 raise FieldError("params.column", f"{name} is a key column; set allow_key: true")
 
+    def columns_used(
+        self, ctx: ResolveContext, table: str, params: ResolvedParams
+    ) -> frozenset[str]:
+        return frozenset({cast(str, params["column"])})
+
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset
         table = dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         name = str(ctx.params["column"])
         # A row that already holds NULL would not change.
         picked = select(ctx, lambda row: row.values.get(name) is not None)

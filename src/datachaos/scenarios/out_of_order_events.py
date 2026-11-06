@@ -15,12 +15,15 @@ from datachaos.scenarios.base import (
     Group,
     ParamSpec,
     ResolveContext,
+    ResolvedParams,
     ScenarioContext,
     ScenarioOutcome,
     ScenarioSpec,
     ScenarioStats,
     batch_bounds,
+    batch_of,
     column_named,
+    conform_row,
     groups_of,
     ingestion_column,
     key_of,
@@ -82,10 +85,16 @@ class OutOfOrderEvents(BaseScenario):
             raise FieldError("params.group_by", f"{table} has no foreign key, so give a column")
         resolved["group_by"] = keys[0]
 
+    def columns_used(
+        self, ctx: ResolveContext, table: str, params: ResolvedParams
+    ) -> frozenset[str]:
+        event_time = ctx.dataset.tables[table].stable_schema.column_with_role(Role.EVENT_TIME).name
+        return frozenset({str(params["group_by"]), event_time})
+
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset
         table = dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         event_time = schema.column_with_role(Role.EVENT_TIME).name
         ingestion = ingestion_column(schema)
         as_of = parse_timestamp(dataset.as_of)
@@ -113,7 +122,12 @@ class OutOfOrderEvents(BaseScenario):
             after = ctx.rng.between(floor, min(floor + _MAX_HOLD_BACK, as_of - 1))
             old_batch = batch_index(before, start, interval)
             new_batch = batch_index(after, start, interval)
-            moved[earlier.rid] = format_timestamp(after)
+            moved[earlier.rid] = conform_row(
+                table,
+                replace(earlier, values={**earlier.values, ingestion: format_timestamp(after)}),
+                old_batch,
+                new_batch,
+            )
             ledger.append(
                 LedgerEntry(
                     scenario_index=ctx.index,
@@ -126,7 +140,7 @@ class OutOfOrderEvents(BaseScenario):
                     batch=new_batch,
                     column=ingestion,
                     before=earlier.values[ingestion],
-                    after=moved[earlier.rid],
+                    after=moved[earlier.rid].values[ingestion],
                 )
             )
             if new_batch != old_batch:
@@ -144,12 +158,7 @@ class OutOfOrderEvents(BaseScenario):
                         after=new_batch,
                     )
                 )
-        rows = [
-            replace(row, values={**row.values, ingestion: moved[row.rid]})
-            if row.rid in moved
-            else row
-            for row in table.rows
-        ]
+        rows = [moved.get(row.rid, row) for row in table.rows]
         stats = ScenarioStats(
             rows_before=len(table.rows),
             rows_after=len(rows),
@@ -161,7 +170,7 @@ class OutOfOrderEvents(BaseScenario):
 
     def check(self, ctx: ScenarioContext, outcome: ScenarioOutcome) -> list[str]:
         table = ctx.dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         event_time = schema.column_with_role(Role.EVENT_TIME).name
         ingestion = ingestion_column(schema)
         as_of = parse_timestamp(ctx.dataset.as_of)
@@ -179,7 +188,15 @@ class OutOfOrderEvents(BaseScenario):
             elif row.rid not in changed:
                 if current != row:
                     problems.append(f"row {row.rid} changed without being selected")
-            elif {**current.values, ingestion: None} != {**row.values, ingestion: None}:
+            elif {**current.values, ingestion: None} != {
+                **conform_row(
+                    table,
+                    row,
+                    batch_of(ctx.dataset, table, row),
+                    batch_of(outcome.dataset, outcome.dataset.tables[ctx.table], current),
+                ).values,
+                ingestion: None,
+            }:
                 problems.append(f"row {row.rid} changed more than {ingestion}")
             elif parse_timestamp(str(current.values[ingestion])) >= as_of:
                 problems.append(f"row {row.rid} landed on or after as_of")

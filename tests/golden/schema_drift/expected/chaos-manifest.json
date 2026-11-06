@@ -1,0 +1,312 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "0.1.0",
+  "run": {
+    "run_id": "dcaf140fe782ea27",
+    "created_at": "2000-01-01T00:00:00Z",
+    "seed": 20260111,
+    "config": {
+      "version": 1,
+      "seed": 20260111,
+      "dataset": {
+        "name": "shop",
+        "as_of": "2026-01-08T00:00:00Z",
+        "customers": 20,
+        "orders": 50,
+        "batches": 3,
+        "batch_interval": "1d"
+      },
+      "output": {
+        "formats": [
+          "csv",
+          "jsonl"
+        ],
+        "combined": false,
+        "emit_row_ids": false
+      },
+      "scenarios": [
+        {
+          "name": "schema-drift",
+          "table": "orders",
+          "params": {
+            "operation": "change_type",
+            "column": "amount",
+            "from_batch": 1,
+            "to": "string_comma_decimal"
+          }
+        },
+        {
+          "name": "schema-drift",
+          "table": "orders",
+          "params": {
+            "operation": "rename_column",
+            "column": "source_system",
+            "from_batch": 2,
+            "new_name": "channel"
+          }
+        },
+        {
+          "name": "schema-drift",
+          "table": "customers",
+          "params": {
+            "operation": "drop_column",
+            "column": "customer_segment",
+            "from_batch": 1
+          }
+        },
+        {
+          "name": "schema-drift",
+          "table": "order_events",
+          "params": {
+            "operation": "add_column",
+            "column": "region",
+            "from_batch": 1,
+            "fill": "generated"
+          }
+        }
+      ],
+      "expectations": []
+    }
+  },
+  "dataset": {
+    "name": "shop",
+    "generator_version": 2,
+    "as_of": "2026-01-08T00:00:00Z",
+    "batches": 3,
+    "batch_interval": "1d",
+    "tables": {
+      "customers": {
+        "rows_baseline": 20,
+        "rows_final": 20
+      },
+      "orders": {
+        "rows_baseline": 50,
+        "rows_final": 50
+      },
+      "order_events": {
+        "rows_baseline": 171,
+        "rows_final": 171
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "index": 0,
+      "name": "schema-drift",
+      "version": 1,
+      "table": "orders",
+      "seed": 6535543173068094748,
+      "params": {
+        "operation": "change_type",
+        "column": "amount",
+        "from_batch": 1,
+        "to": "string_comma_decimal"
+      },
+      "stats": {
+        "rows_before": 50,
+        "rows_after": 50,
+        "rows_selected": 30,
+        "rows_added": 0,
+        "values_changed": 30
+      },
+      "ledger_entries": 1
+    },
+    {
+      "index": 1,
+      "name": "schema-drift",
+      "version": 1,
+      "table": "orders",
+      "seed": 13187348609246505238,
+      "params": {
+        "operation": "rename_column",
+        "column": "source_system",
+        "from_batch": 2,
+        "new_name": "channel"
+      },
+      "stats": {
+        "rows_before": 50,
+        "rows_after": 50,
+        "rows_selected": 14,
+        "rows_added": 0,
+        "values_changed": 0
+      },
+      "ledger_entries": 1
+    },
+    {
+      "index": 2,
+      "name": "schema-drift",
+      "version": 1,
+      "table": "customers",
+      "seed": 1263695972480887862,
+      "params": {
+        "operation": "drop_column",
+        "column": "customer_segment",
+        "from_batch": 1
+      },
+      "stats": {
+        "rows_before": 20,
+        "rows_after": 20,
+        "rows_selected": 11,
+        "rows_added": 0,
+        "values_changed": 0
+      },
+      "ledger_entries": 1
+    },
+    {
+      "index": 3,
+      "name": "schema-drift",
+      "version": 1,
+      "table": "order_events",
+      "seed": 16229056822292309785,
+      "params": {
+        "operation": "add_column",
+        "column": "region",
+        "from_batch": 1,
+        "fill": "generated"
+      },
+      "stats": {
+        "rows_before": 171,
+        "rows_after": 171,
+        "rows_selected": 118,
+        "rows_added": 0,
+        "values_changed": 118
+      },
+      "ledger_entries": 1
+    }
+  ],
+  "files": [
+    {
+      "path": "chaos-ledger.jsonl",
+      "sha256": "387865f19b0a6ef35bfc4198514725b864db92f0458e136bd17c8ffc2eda4a56",
+      "rows": 4
+    },
+    {
+      "path": "data/customers/batch_0000.csv",
+      "sha256": "c4d3cfdb96d438c439ef968f68e4ac51a2aec8c3c4ecda3d488736cd16ce2158",
+      "rows": 9
+    },
+    {
+      "path": "data/customers/batch_0000.jsonl",
+      "sha256": "42cdc144797fe7fbc61f75fa2b468dc79e111a954953ba2700f6e321dc410bda",
+      "rows": 9
+    },
+    {
+      "path": "data/customers/batch_0001.csv",
+      "sha256": "ff90673a255a4f0831c205a02e46dfc924460aa2b2de0f87fedc26bbdea97204",
+      "rows": 7
+    },
+    {
+      "path": "data/customers/batch_0001.jsonl",
+      "sha256": "37996797b549231f32d107030d5e8c6b59910810664e163b9589f0248cf42c17",
+      "rows": 7
+    },
+    {
+      "path": "data/customers/batch_0002.csv",
+      "sha256": "a300e6fab6c05eaeec304b1c7fc19e2cb0db4db9adb6704e0cf9eaae649484d5",
+      "rows": 4
+    },
+    {
+      "path": "data/customers/batch_0002.jsonl",
+      "sha256": "cc3812a375b52b4522fa2d2fedcab641432b0ba29eda269833cf46c3b462a7fa",
+      "rows": 4
+    },
+    {
+      "path": "data/order_events/batch_0000.csv",
+      "sha256": "a6d428ae21d949365890f6cf0b4c998efab6c876590ed106d3e2e26f86201149",
+      "rows": 53
+    },
+    {
+      "path": "data/order_events/batch_0000.jsonl",
+      "sha256": "600f9654625732c27cc98370e243218bd672480ce9b6b900c14766ea7b5abfa8",
+      "rows": 53
+    },
+    {
+      "path": "data/order_events/batch_0001.csv",
+      "sha256": "c78fee260842a80b0c5e279ddf745f4973341955712d6d1b67ea51cd1e97d27f",
+      "rows": 53
+    },
+    {
+      "path": "data/order_events/batch_0001.jsonl",
+      "sha256": "b9c1636c52430ed426da026ab790c09868578de07ef6a474982430cd276eca9a",
+      "rows": 53
+    },
+    {
+      "path": "data/order_events/batch_0002.csv",
+      "sha256": "d1acfb24308ad4f78444c83ba6a0663667fb150a95fa464b5f880796582399b0",
+      "rows": 65
+    },
+    {
+      "path": "data/order_events/batch_0002.jsonl",
+      "sha256": "677688713805fbc65d61c1b9775354c6846459d33f95a6b9be621c084b029f99",
+      "rows": 65
+    },
+    {
+      "path": "data/orders/batch_0000.csv",
+      "sha256": "6c4ab3cb74438997a6d2bb862457e9293215c0ea867ad7a957d7da287b681691",
+      "rows": 20
+    },
+    {
+      "path": "data/orders/batch_0000.jsonl",
+      "sha256": "7675244c483509c1ce48e444231ea6e959ba9253fb4940af0612f21ca47cd426",
+      "rows": 20
+    },
+    {
+      "path": "data/orders/batch_0001.csv",
+      "sha256": "166150bb0384abac629f6189b9cd4910f5ddd354709474c5dd31f6220a7a6048",
+      "rows": 16
+    },
+    {
+      "path": "data/orders/batch_0001.jsonl",
+      "sha256": "f4f4c7abe7e1549cba8571d53eb6a1cc3965b195f05be118b91ad39ade1472ac",
+      "rows": 16
+    },
+    {
+      "path": "data/orders/batch_0002.csv",
+      "sha256": "1d9e5bf9bd09e0e2251d8bbc464092dd6f715295357d8841244b73c32aedc6e8",
+      "rows": 14
+    },
+    {
+      "path": "data/orders/batch_0002.jsonl",
+      "sha256": "f166857f9e7b62c9bf2cb6f97047d388993bbc1e2547435fbaad393641aad042",
+      "rows": 14
+    },
+    {
+      "path": "schemas/customers/batch_0000.json",
+      "sha256": "8aa970b4ab867745a892b664389abe7f166a2b3af29c0e2834dafe9236126d05"
+    },
+    {
+      "path": "schemas/customers/batch_0001.json",
+      "sha256": "e36ed8d72018733e089b1ce5a64c3f5e0f47a36cec3687806811a8a98099b484"
+    },
+    {
+      "path": "schemas/customers/batch_0002.json",
+      "sha256": "d6e3fde640a0056d08d638b2f40afb2eda798a44a1db431ccb19abb31c003a5d"
+    },
+    {
+      "path": "schemas/order_events/batch_0000.json",
+      "sha256": "2da012399316496a79f0f13f6d82a43c24773edbbb0d525137d4ad65ef699c14"
+    },
+    {
+      "path": "schemas/order_events/batch_0001.json",
+      "sha256": "8fa5931cf6ad4d5ded10b8e3a8f9e91cd7cab17c0d70cc2c39bb921625d7dae5"
+    },
+    {
+      "path": "schemas/order_events/batch_0002.json",
+      "sha256": "838893eb57a181b15b6df36182961d44a1f1558e0d9ac48bf113213d969bb165"
+    },
+    {
+      "path": "schemas/orders/batch_0000.json",
+      "sha256": "502b4a9da5eff94b0f5ec2b8226bce015b989540e3435439529cc701bf25b044"
+    },
+    {
+      "path": "schemas/orders/batch_0001.json",
+      "sha256": "d52bae12b4ab7e21664440ade961b8a95853b94f2558b39033abf447eb8a9657"
+    },
+    {
+      "path": "schemas/orders/batch_0002.json",
+      "sha256": "4d42725a9f03a68a61a8d9c98985702642b42811e94f9650eb55730368ae5168"
+    }
+  ],
+  "content_sha256": "c3c8ad35bb4b3756bf21e6b8a83eabaa934612351ddef017018728e69d804170",
+  "warnings": []
+}

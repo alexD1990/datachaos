@@ -4,8 +4,8 @@ DataChaos will generate a synthetic, deterministic dataset delivered in batches,
 controlled data quality faults, keep a ledger of exactly what changed, and check whether your
 pipeline's dbt tests caught the faults.
 
-**Status:** early development. The clean baseline dataset can be generated and seven of the eight
-planned scenarios can inject faults; checking dbt results is not implemented yet.
+**Status:** early development. The clean baseline dataset can be generated and all eight scenarios
+can inject faults; checking dbt results is not implemented yet.
 
 ## Install
 
@@ -80,6 +80,7 @@ late-arriving-data      Delays ingested_at, so that rows land in a later batch t
 null-critical-column    Sets a column to NULL, whether or not the schema allows it.
 orphaned-foreign-key    Makes foreign keys point at a parent that does not exist.
 out-of-order-events     Holds back the next to last event of a group, so that it lands after the last.
+schema-drift            Changes the schema of a table from one batch on.
 ```
 
 `datachaos describe <scenario>` shows what a scenario detects and its parameters, and
@@ -135,6 +136,8 @@ datachaos run --out chaos --scenario invalid-enum --table orders --param column=
 
 - By default a scenario does not select a row whose key or group an earlier scenario has touched.
   `allow_overlap: true` turns that off.
+- `schema-drift` cannot be combined with another scenario on the same column, and a row always has
+  the form of the batch it is in. `--combined` is refused when a table's schema varies.
 - Everything is validated before any scenario runs, and all scenarios run before anything is
   written, so an error leaves no output.
 - `--force` replaces earlier output, but only if its manifest lists every file in the directory.

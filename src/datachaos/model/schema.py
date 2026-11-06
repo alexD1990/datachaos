@@ -28,6 +28,8 @@ class Role(Enum):
 
 
 TableKind = Literal["entity", "event_log"]
+StepOperation = Literal["add_column", "drop_column", "rename_column", "change_type"]
+StepFill = Literal["null", "generated"]
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,19 @@ class Column:
             allowed_values=tuple(data.get("allowed_values", ())),
             scale=data.get("scale"),
         )
+
+
+@dataclass(frozen=True)
+class SchemaStep:
+    """A change to a table's schema from one batch on, as schema-drift records it."""
+
+    from_batch: int
+    operation: StepOperation
+    column: str
+    new_name: str | None = None
+    to: str | None = None
+    fill: StepFill = "null"
+    fill_seed: int = 0
 
 
 @dataclass(frozen=True)

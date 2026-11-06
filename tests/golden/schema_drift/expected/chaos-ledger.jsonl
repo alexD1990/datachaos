@@ -1,0 +1,4 @@
+{"scenario_index":0,"scenario":"schema-drift","table":"orders","action":"schema_change","rid":"","key":{},"batch":1,"column":"amount","before":"decimal","after":"string_comma_decimal"}
+{"scenario_index":1,"scenario":"schema-drift","table":"orders","action":"schema_change","rid":"","key":{},"batch":2,"column":"source_system","before":"source_system","after":"channel"}
+{"scenario_index":2,"scenario":"schema-drift","table":"customers","action":"schema_change","rid":"","key":{},"batch":1,"column":"customer_segment","before":"customer_segment","after":null}
+{"scenario_index":3,"scenario":"schema-drift","table":"order_events","action":"schema_change","rid":"","key":{},"batch":1,"column":"region","before":null,"after":"region"}

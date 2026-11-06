@@ -6,14 +6,17 @@ from collections.abc import Mapping
 import pytest
 
 from datachaos.errors import DataChaosError, FieldError
-from datachaos.model.schema import Column, ColumnType, Role, TableSchema
-from datachaos.model.table import Row
+from datachaos.model.schema import Column, ColumnType, Role, SchemaStep, TableSchema
+from datachaos.model.table import Row, Table
 from datachaos.rng import Rng
 from datachaos.scenarios.base import (
     COMMON_PARAMS,
     Group,
     ParamSpec,
     ScenarioSpec,
+    apply_step,
+    conform_row,
+    convert_value,
     groups_of,
     new_rid,
     other_value,
@@ -222,6 +225,59 @@ def test_other_value_differs_and_stays_valid(column, value, check) -> None:  # t
 def test_other_value_keeps_the_scale_of_a_decimal() -> None:
     column = Column("d", ColumnType.DECIMAL, False, scale=2)
     assert re.fullmatch(r"[0-9]+\.[0-9]{2}", str(other_value(column, "0.05", Rng(1))))
+
+
+def _table(*steps: SchemaStep) -> Table:
+    return Table((SCHEMA,), (), steps)
+
+
+def test_conform_row_applies_only_the_steps_between_the_batches() -> None:
+    table = _table(
+        SchemaStep(1, "rename_column", "a", new_name="b"),
+        SchemaStep(3, "drop_column", "c"),
+    )
+    row = Row("r", {"a": 1, "c": 2})
+    assert conform_row(table, row, 0, 0) is row
+    assert conform_row(table, Row("r", {"b": 1, "c": 2}), 1, 2).values == {"b": 1, "c": 2}
+    assert conform_row(table, row, 0, 1).values == {"b": 1, "c": 2}
+    assert conform_row(table, row, 0, 3).values == {"b": 1}
+    assert conform_row(table, Row("r", {"b": 1, "c": 2}), 1, 3).values == {"b": 1}
+    assert row.values == {"a": 1, "c": 2}
+
+
+def test_conform_row_without_steps_returns_the_same_row() -> None:
+    row = Row("r", {"a": 1})
+    assert conform_row(_table(), row, 0, 5) is row
+
+
+def test_generated_fill_depends_on_the_seed_and_the_rid_only() -> None:
+    step = SchemaStep(0, "add_column", "n", fill="generated", fill_seed=7)
+    first = apply_step(step, {}, "r1")["n"]
+    assert first == apply_step(step, {"x": 1}, "r1")["n"]
+    assert first != apply_step(step, {}, "r2")["n"]
+    other = SchemaStep(0, "add_column", "n", fill="generated", fill_seed=8)
+    assert first != apply_step(other, {}, "r1")["n"]
+    assert re.fullmatch("[0-9a-f]{8}", str(first))
+    assert apply_step(SchemaStep(0, "add_column", "n"), {}, "r1") == {"n": None}
+
+
+@pytest.mark.parametrize(
+    ("to", "value", "expected"),
+    [
+        ("string_comma_decimal", "12.50", "12,50"),
+        ("string_local_format", "2026-01-05T14:05:00Z", "05.01.2026 14:05"),
+        ("string", 5, "5"),
+        ("string", "12.50", "12.50"),
+        ("string_yes_no", True, "yes"),
+        ("string_yes_no", False, "no"),
+        ("string_comma_decimal", None, None),
+        ("string_local_format", None, None),
+        ("string", None, None),
+        ("string_yes_no", None, None),
+    ],
+)
+def test_convert_value(to: str, value: object, expected: object) -> None:
+    assert convert_value(to, value) == expected  # type: ignore[arg-type]
 
 
 def test_type_name() -> None:

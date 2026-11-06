@@ -116,6 +116,21 @@ def test_text_files_are_opened_with_utf8_and_no_newline_translation(path: Path) 
         assert keywords.get("newline") == "", f"{path}:{call.lineno}"
 
 
+@pytest.mark.parametrize("path", SOURCES, ids=lambda p: str(p.relative_to(SRC)))
+def test_only_the_table_model_reads_the_schema_of_the_first_batch(path: Path) -> None:
+    if path.relative_to(SRC).as_posix() == "model/table.py":
+        return
+    for node in ast.walk(_parse(path)):
+        if (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr == "schema_by_batch"
+            and isinstance(node.slice, ast.Constant)
+            and node.slice.value == 0
+        ):
+            raise AssertionError(f"{path}:{node.lineno}: use stable_schema or ingestion_column")
+
+
 def test_binary_mode_is_only_used_for_hashing() -> None:
     for path in SOURCES:
         for call in _calls(_parse(path)):

@@ -122,3 +122,21 @@ Holds back the next to last event of a group, so that it lands after the last.
 | `count` | int | no | `none` | Number of candidate rows to select. Give exactly one of rate and count. |
 | `allow_overlap` | bool | no | `false` | Also select rows whose key an earlier scenario has touched. |
 | `group_by` | str | no | `none` | The column that defines a group. Defaults to the foreign key. rate and count select groups, among those with two events in order and room before as_of. |
+
+## `schema-drift`
+
+Changes the schema of a table from one batch on.
+
+- **Version:** 1
+- **Detects:** Pipelines that fail or silently lose data when a schema changes.
+- **Typical dbt test:** `none; often shows up as a model with status error`
+- **Applies to:** entity, event_log tables
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `operation` | str | yes |  | add_column, drop_column, rename_column or change_type. |
+| `column` | str | yes |  | The column to change, or the name of the new one. The ingestion time can never change, and a key cannot be dropped or renamed. |
+| `from_batch` | int | no | `none` | The first batch with the new schema. Defaults to the last one. |
+| `new_name` | str | no | `none` | The new name, with rename_column. |
+| `to` | str | no | `none` | With change_type: string_comma_decimal from decimal, string_local_format from timestamp, string from integer or decimal, string_yes_no from boolean. |
+| `fill` | str or NoneType | no | `none` | With add_column: null (default), or generated for a value derived per row. |

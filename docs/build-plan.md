@@ -312,11 +312,13 @@ class ScenarioSpec:
     typical_dbt_test: str           # "unique", "not_null", ...
     applies_to: frozenset[str]      # {"entity"}, {"event_log"} eller begge
     params: tuple[ParamSpec, ...]
+    changes_schema: bool = False    # bare schema-drift
 
 class Scenario(Protocol):
     spec: ScenarioSpec
     def resolve(self, ctx: ResolveContext, table: str, params: Mapping[str, object]) -> ResolvedParams: ...
     def schemas_after(self, ctx: ResolveContext, table: str, params: ResolvedParams) -> SchemaState: ...
+    def columns_used(self, ctx: ResolveContext, table: str, params: ResolvedParams) -> frozenset[str]: ...
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome: ...
     def check(self, ctx: ScenarioContext, outcome: ScenarioOutcome) -> list[str]: ...
 
@@ -351,6 +353,7 @@ class ScenarioOutcome:
   før i `ctx.dataset` og etter i `outcome.dataset`. Ikke-tom liste ⇒ intern feil (exit 2), fordi
   det betyr en bug i DataChaos. Invarianter sjekkes relativt til tilstanden før scenarioet.
 - `rate`, `count` og `allow_overlap` ligger under `params` i configen, som alle andre parametere.
+- `columns_used` er kolonnene scenarioet endrer eller må lese, til konfliktsjekken i § 7.3.
 
 ### 7.2 Utvalg av rader
 
@@ -381,8 +384,16 @@ tidligere (null-setter nøkkelen som nettopp ble duplisert), og ledgeren blir fe
 - Scenarioer som også velger fra en annen tabell bruker `ctx.eligible_in(tabell)`.
 - `allow_overlap: true` på scenarioet slår det av. Ledgeren blir fortsatt korrekt fordi den
   skriver før-/etterverdi per endring, men `validate` kan da bare sjekke siste tilstand.
-- Kolonne-schema-drift (`drop_column`, `rename_column`) på en kolonne som et tidligere
-  scenario har endret er en valideringsfeil ved oppstart.
+- **Schema-drift** kan ikke kombineres med et annet scenario på samme kolonne, i noen rekkefølge.
+  Det er en valideringsfeil ved oppstart som navngir begge scenarioene. Med «samme kolonne» menes
+  kolonner scenarioet endrer eller må lese (`columns_used`):
+  - `null-critical-column` og `invalid-enum`: `column`
+  - `orphaned-foreign-key`: FK-kolonnen
+  - `duplicate-business-key`: `key_columns`, og med `mutate_non_key` kolonnene den kan endre
+  - `out-of-order-events`: `group_by` og event time
+  - `historical-update`: `columns`, `updated_at` og event time
+
+  Kolonner som bare følger med i raden gir ingen konflikt.
 
 ### 7.4 Ledger
 
@@ -398,6 +409,9 @@ tidligere (null-setter nøkkelen som nettopp ble duplisert), og ledgeren blir fe
 - `set_value` har `column`, `before` og `after`.
 - `move_batch` har gammel og ny batch i `before` og `after`, og `batch` er den nye. Det følger en
   `set_value` på `ingested_at`, som også har den nye batchen i `batch`.
+- `schema_change` er én linje per drift: `rid` er tom, `key` er `{}`, `batch` er `from_batch`,
+  `column` er kolonnen, og `before` og `after` er gammelt og nytt navn eller type. Den sperrer ingen
+  rader for senere scenarioer.
 - `orphan_row` markerer en rad som mistet forelderen uten selv å endres: `column` er FK-kolonnen,
   og `before` og `after` er like.
 - `group` er valgfritt, står etter `key` og utelates når det ikke er satt (§ 7.3).
@@ -410,7 +424,8 @@ den endrer schemaet pipelinen ser.
 ## 8. Scenarioer i MVP
 
 Åtte scenarioer, valgt fordi hvert enkelt treffer en vanlig dbt-test eller en vanlig feil i
-inkrementelle modeller. Alle har `rate`/`count` og `allow_overlap` i tillegg til det som står.
+inkrementelle modeller. Alle unntatt `schema-drift` har `rate`/`count` og `allow_overlap` i tillegg
+til det som står. `schema-drift` gjelder alltid alle rader fra `from_batch`.
 
 ### 8.1 `duplicate-business-key`
 
@@ -528,22 +543,35 @@ inkrementelle modeller. Alle har `rate`/`count` og `allow_overlap` i tillegg til
 
 - **Avslører:** pipelines som feiler eller stille mister data ved schemaendring.
 - **Parametere:** `operation` (`add_column` | `drop_column` | `rename_column` |
-  `change_type`), `column`, `from_batch` (standard: siste batch), samt `new_name`
-  (rename) og `to` (change_type).
-- **Støttede `change_type`-konverteringer** (fast liste, ikke generell):
+  `change_type`), `column`, `from_batch` (standard: siste batch, oppløses til et tall, 0 er lov),
+  samt `new_name` (rename), `to` (change_type) og `fill` (add_column).
+- **Låste kolonner:** `ingested_at` kan aldri endres, fordi batch utledes fra den. Nøkkelkolonner
+  kan ikke droppes eller omdøpes. Ledige navn må være ledige i alle batcher, og `_chaos_rid` er
+  reservert. FK-kolonner kan omdøpes.
+- **Støttede `change_type`-konverteringer** (fast liste, ikke generell). NULL forblir NULL, og typen
+  i schemaet blir STRING:
 
   | Fra | `to` | Eksempel |
   |---|---|---|
-  | DECIMAL | `string_comma_decimal` | `12.50` → `12,50` |
+  | DECIMAL | `string_comma_decimal` | `12.50` → `12,50` (`"12,50"` i CSV) |
   | TIMESTAMP | `string_local_format` | `2026-01-05T14:05:00Z` → `05.01.2026 14:05` |
   | INTEGER/DECIMAL | `string` | samme tekst, men schema sier STRING |
   | BOOLEAN | `string_yes_no` | `true` → `yes` |
 
-- **Transformasjon:** gjelder batch ≥ `from_batch`. Endrer `schema_by_batch` og verdiene.
-  `add_column` fyller med en deterministisk generert verdi eller NULL (`fill: null|generated`).
+- **`add_column`:** `column` er det nye navnet, og kolonnen blir nullable STRING med rolle ATTRIBUTE,
+  sist i schemaet. `fill` er `null` (standard) eller `generated`, som beregnes med SHA-256 av seed og
+  `rid` uten RNG, så en rad som flyttes inn i batchen senere får riktig verdi.
+- **Transformasjon:** gjelder batch ≥ `from_batch`. Endrer `schema_by_batch` og verdiene, og legger
+  endringen i `Table.schema_steps`.
+- **En rad har alltid formen til batchen den ligger i.** Rader flytter seg bare framover i tid, så
+  `conform_row` konverterer fra eldre til nyere schema når `late-arriving-data`,
+  `out-of-order-events`, `duplicate-business-key` eller `historical-update` krysser `from_batch`.
+  `exact_copy` betyr lik etter konvertering. `mutate_non_key` velger aldri en driftet kolonne.
 - **Invariant:** batcher før `from_batch` er byte-identiske med før scenarioet; schema-filene
   for batcher fra `from_batch` reflekterer endringen.
-- Kan ikke kombineres med andre scenarioer på samme kolonne i samme kjøring (§ 7.3).
+- Kan ikke kombineres med andre scenarioer på samme kolonne i samme kjøring (§ 7.3). En
+  `historical-update` med en driftet kolonne i `columns` er dermed en feil ved oppstart, også via
+  standarden `[status, amount]`. Andre driftede kolonner får formen til `in_batch`.
 
 ## 9. Output
 
