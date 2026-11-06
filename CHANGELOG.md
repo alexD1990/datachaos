@@ -18,6 +18,10 @@ All notable changes to this project are documented in this file. The format is b
 - Output is written through a temp directory and renamed into place. Missing parent directories
   are created; a non-empty output directory or a temp directory left by an earlier run is an
   error, and nothing is deleted.
+- `datachaos.run()`, which runs a YAML config. Every scenario is validated before any runs, each
+  against the schema state the earlier ones leave behind, and a scenario's invariant is checked
+  right after it runs. All changes go to `chaos-ledger.jsonl`.
+- Scenario `duplicate-business-key`.
 
 ### Changed
 - CI also runs on macOS and Windows with Python 3.12.

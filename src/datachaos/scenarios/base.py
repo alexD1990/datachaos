@@ -133,7 +133,10 @@ class BaseScenario:
             )
         resolved = resolve_params(self.spec, schema, params)
         self.resolve_more(ctx, table, resolved, params)
-        return resolved
+        # In spec order whatever was filled in when, so the manifest is the same on a rerun.
+        return {
+            param.name: resolved[param.name] for param in self.spec.params if param.name in resolved
+        }
 
     def resolve_more(
         self,
