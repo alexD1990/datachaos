@@ -42,6 +42,36 @@ def test_ledger_entry_matches_the_documented_lines() -> None:
     )
 
 
+def test_ledger_entry_with_a_group_keeps_it_after_the_key() -> None:
+    entry = LedgerEntry(
+        scenario_index=2,
+        scenario="out-of-order-events",
+        table="order_events",
+        action="set_value",
+        rid="e0000001",
+        key={"event_id": "E0000001"},
+        group={"order_id": "O000001"},
+        batch=1,
+        column="ingested_at",
+        before="a",
+        after="b",
+    )
+    assert list(entry.to_dict()) == [
+        "scenario_index",
+        "scenario",
+        "table",
+        "action",
+        "rid",
+        "key",
+        "group",
+        "batch",
+        "column",
+        "before",
+        "after",
+    ]
+    assert entry.to_dict()["group"] == {"order_id": "O000001"}
+
+
 def test_schema_round_trips_through_its_file_format() -> None:
     schema = TableSchema(
         name="orders",

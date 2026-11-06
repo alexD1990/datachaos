@@ -33,6 +33,7 @@ from datachaos.scenarios.base import (
     batch_of,
     key_of,
     select,
+    select_groups,
     with_rows,
 )
 
@@ -161,6 +162,75 @@ class Unsorted(Touch):
         return replace(outcome, ledger=tuple(reversed(outcome.ledger)))
 
 
+class Grouped(Touch):
+    """Works on whole orders in the event log, as out-of-order-events does."""
+
+    spec = ScenarioSpec(
+        name="grouped",
+        version=1,
+        summary="",
+        detects="",
+        typical_dbt_test="",
+        applies_to=frozenset({"event_log"}),
+        params=COMMON_PARAMS,
+    )
+
+    def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
+        table = ctx.dataset.tables[ctx.table]
+        schema = table.schema_by_batch[0]
+        picked = select_groups(table.rows, ["order_id"], ctx.params, ctx.rng, eligible=ctx.eligible)
+        ledger = tuple(
+            LedgerEntry(
+                scenario_index=ctx.index,
+                scenario=self.spec.name,
+                table=ctx.table,
+                action="set_value",
+                rid=group.rows[0].rid,
+                key=key_of(group.rows[0], schema),
+                group=group.key,
+                batch=batch_of(ctx.dataset, table, group.rows[0]),
+                column="event_type",
+            )
+            for group in picked
+        )
+        stats = ScenarioStats(len(table.rows), len(table.rows), len(picked), 0, 0)
+        return ScenarioOutcome(ctx.dataset, ledger, stats)
+
+
+class RowInEvents(Touch):
+    """A row-level scenario on the event log."""
+
+    spec = ScenarioSpec(
+        name="row-in-events",
+        version=1,
+        summary="",
+        detects="",
+        typical_dbt_test="",
+        applies_to=frozenset({"event_log"}),
+        params=COMMON_PARAMS,
+    )
+
+    def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
+        table = ctx.dataset.tables[ctx.table]
+        schema = table.schema_by_batch[0]
+        picked = select(ctx)
+        ledger = tuple(
+            LedgerEntry(
+                scenario_index=ctx.index,
+                scenario=self.spec.name,
+                table=ctx.table,
+                action="set_value",
+                rid=row.rid,
+                key=key_of(row, schema),
+                batch=batch_of(ctx.dataset, table, row),
+                column="event_type",
+            )
+            for row in picked
+        )
+        stats = ScenarioStats(len(table.rows), len(table.rows), len(picked), 0, 0)
+        return ScenarioOutcome(ctx.dataset, ledger, stats)
+
+
 class Selfish(Touch):
     spec = _spec("selfish")
 
@@ -170,7 +240,16 @@ class Selfish(Touch):
 
 @pytest.fixture(autouse=True)
 def _registry(monkeypatch: pytest.MonkeyPatch) -> None:
-    for scenario in (Touch(), Rename(), NeedsColumn(), Broken(), Selfish(), Unsorted()):
+    for scenario in (
+        Touch(),
+        Rename(),
+        NeedsColumn(),
+        Broken(),
+        Selfish(),
+        Unsorted(),
+        Grouped(),
+        RowInEvents(),
+    ):
         monkeypatch.setitem(SCENARIOS, scenario.spec.name, scenario)
 
 
@@ -359,6 +438,132 @@ def test_a_touched_row_stays_excluded_after_its_key_has_changed() -> None:
     nulled = replace(row, values={**row.values, "order_id": None})
     planned = engine._Planned(1, Touch(), "orders", {"allow_overlap": False})
     assert not engine._eligibility(baseline, planned, [touched])(nulled)
+
+
+def _events(name: str, **params: object) -> ScenarioConfig:
+    return ScenarioConfig(name, "order_events", params)
+
+
+def _orders_in(result_ledger: bytes) -> list[str]:
+    return [json.loads(line)["group"]["order_id"] for line in result_ledger.splitlines()]
+
+
+def _order_of_key(baseline, event_id: str) -> object:  # type: ignore[no-untyped-def]
+    return next(
+        row.values["order_id"]
+        for row in baseline.tables["order_events"].rows
+        if row.values["event_id"] == event_id
+    )
+
+
+def test_a_group_line_records_the_group(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    engine.run(_config(_events("grouped", count=3)), out)
+    entry = json.loads(_ledger(out).splitlines()[0])
+    assert list(entry)[:8] == [
+        "scenario_index",
+        "scenario",
+        "table",
+        "action",
+        "rid",
+        "key",
+        "group",
+        "batch",
+    ]
+    assert set(entry["group"]) == {"order_id"}
+
+
+def test_a_later_row_scenario_stays_out_of_a_touched_group(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    config = _config(_events("grouped", count=40), _events("row-in-events", rate=1.0))
+    baseline = engine._build_dataset(config)
+    engine.run(config, out)
+    entries = [json.loads(line) for line in _ledger(out).splitlines()]
+    touched = {entry["group"]["order_id"] for entry in entries if entry["scenario_index"] == 0}
+    later = [entry for entry in entries if entry["scenario_index"] == 1]
+    assert len(touched) == 40
+    assert later
+    for entry in later:
+        assert _order_of_key(baseline, entry["key"]["event_id"]) not in touched
+
+
+def test_a_later_group_scenario_stays_out_of_a_touched_group(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    engine.run(_config(_events("grouped", count=30), _events("grouped", count=20)), out)
+    orders = _orders_in(_ledger(out))
+    assert len(orders) == len(set(orders)) == 50
+    with pytest.raises(DataChaosError, match="more than the 20 candidate groups"):
+        engine.run(
+            _config(_events("grouped", count=30), _events("grouped", count=21)), tmp_path / "x"
+        )
+
+
+def test_a_group_with_a_touched_row_is_no_candidate(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    config = _config(_events("row-in-events", count=5), _events("grouped", rate=1.0))
+    baseline = engine._build_dataset(config)
+    engine.run(config, out)
+    entries = [json.loads(line) for line in _ledger(out).splitlines()]
+    touched = {
+        _order_of_key(baseline, entry["key"]["event_id"])
+        for entry in entries
+        if entry["scenario_index"] == 0
+    }
+    groups = {entry["group"]["order_id"] for entry in entries if entry["scenario_index"] == 1}
+    assert touched
+    assert not touched & groups
+    assert len(groups) == 50 - len(touched)
+
+
+def test_allow_overlap_lets_a_scenario_into_a_touched_group(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    config = _config(
+        _events("grouped", count=50),
+        _events("row-in-events", rate=1.0, allow_overlap=True),
+        _events("grouped", count=50, allow_overlap=True),
+    )
+    manifest = engine.run(config, out)
+    assert manifest.scenarios[2]["ledger_entries"] == 50
+    assert manifest.scenarios[1]["ledger_entries"] == len(
+        engine._build_dataset(config).tables["order_events"].rows
+    )
+
+
+def test_groups_are_kept_per_table() -> None:
+    config = _config(_events("grouped", count=1))
+    baseline = engine._build_dataset(config)
+    row = baseline.tables["orders"].rows[0]
+    touched = LedgerEntry(
+        scenario_index=0,
+        scenario="grouped",
+        table="order_events",
+        action="set_value",
+        rid="e0000001",
+        key={"event_id": "E0000001"},
+        group={"order_id": row.values["order_id"]},
+        batch=0,
+    )
+    planned = engine._Planned(1, Touch(), "orders", {"allow_overlap": False})
+    assert engine._eligibility(baseline, planned, [touched])(row)
+
+
+def test_eligible_in_applies_the_rules_of_another_table() -> None:
+    config = _config(_touch(count=1))
+    baseline = engine._build_dataset(config)
+    customer = baseline.tables["customers"].rows[0]
+    touched = LedgerEntry(
+        scenario_index=0,
+        scenario="touch",
+        table="customers",
+        action="set_value",
+        rid=customer.rid,
+        key={"customer_id": customer.values["customer_id"]},
+        batch=0,
+    )
+    strict = engine._Planned(1, Touch(), "orders", {"allow_overlap": False})
+    free = engine._Planned(1, Touch(), "orders", {"allow_overlap": True})
+    assert not engine._eligibility_in(baseline, strict, [touched])("customers")(customer)
+    assert engine._eligibility_in(baseline, free, [touched])("customers")(customer)
 
 
 def test_ledger_is_sorted(tmp_path: Path) -> None:

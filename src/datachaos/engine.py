@@ -160,6 +160,7 @@ def _apply_scenarios(
             rng=Rng(seed),
             index=item.index,
             eligible=_eligibility(dataset, item, ledger),
+            eligible_in=_eligibility_in(dataset, item, ledger),
         )
         try:
             outcome = item.scenario.apply(ctx)
@@ -196,14 +197,39 @@ def _apply_scenarios(
 def _eligibility(
     dataset: Dataset, item: _Planned, ledger: list[LedgerEntry]
 ) -> Callable[[Row], bool]:
-    """A row is not a candidate if an earlier scenario touched it or its business key."""
-    if item.params.get("allow_overlap"):
-        return lambda row: True
-    earlier = [entry for entry in ledger if entry.table == item.table]
+    return _eligibility_in(dataset, item, ledger)(item.table)
+
+
+def _eligibility_in(
+    dataset: Dataset, item: _Planned, ledger: list[LedgerEntry]
+) -> Callable[[str], Callable[[Row], bool]]:
+    def for_table(table: str) -> Callable[[Row], bool]:
+        if item.params.get("allow_overlap"):
+            return lambda row: True
+        return _not_touched(dataset, table, ledger)
+
+    return for_table
+
+
+def _not_touched(dataset: Dataset, table: str, ledger: list[LedgerEntry]) -> Callable[[Row], bool]:
+    """A row is not a candidate if an earlier scenario touched it, its key or its group."""
+    earlier = [entry for entry in ledger if entry.table == table]
     rids = {entry.rid for entry in earlier} | {entry.source_rid for entry in earlier}
     keys = {_key_identity(entry.key) for entry in earlier}
-    schema = dataset.tables[item.table].schema_by_batch[0]
-    return lambda row: row.rid not in rids and _key_identity(key_of(row, schema)) not in keys
+    touched_groups = [entry.group for entry in earlier if entry.group is not None]
+    groups = {_key_identity(group) for group in touched_groups}
+    group_columns = sorted({tuple(sorted(group)) for group in touched_groups})
+    schema = dataset.tables[table].schema_by_batch[0]
+
+    def eligible(row: Row) -> bool:
+        if row.rid in rids or _key_identity(key_of(row, schema)) in keys:
+            return False
+        return not any(
+            _key_identity({column: row.values.get(column) for column in columns}) in groups
+            for columns in group_columns
+        )
+
+    return eligible
 
 
 def _key_identity(key: Mapping[str, Value]) -> tuple[tuple[str, Value], ...]:

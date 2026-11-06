@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 
 import pytest
@@ -10,10 +11,14 @@ from datachaos.model.table import Row
 from datachaos.rng import Rng
 from datachaos.scenarios.base import (
     COMMON_PARAMS,
+    Group,
     ParamSpec,
     ScenarioSpec,
+    groups_of,
     new_rid,
+    other_value,
     resolve_params,
+    select_groups,
     select_rows,
     type_name,
 )
@@ -146,6 +151,77 @@ def test_new_rid_has_fixed_width_and_sorts_numerically() -> None:
     rids = [new_rid(2, 9), new_rid(2, 10), new_rid(10, 1)]
     assert rids == sorted(rids)
     assert len({len(rid) for rid in rids}) == 1
+
+
+def _members() -> list[Row]:
+    return [
+        Row("r3", {"g": "b"}),
+        Row("r1", {"g": "a"}),
+        Row("r2", {"g": "a"}),
+        Row("r4", {"g": None}),
+        Row("r5", {"g": "c"}),
+    ]
+
+
+def test_groups_are_sorted_and_null_belongs_to_no_group() -> None:
+    assert groups_of(_members(), ["g"]) == [
+        Group({"g": "a"}, (Row("r1", {"g": "a"}), Row("r2", {"g": "a"}))),
+        Group({"g": "b"}, (Row("r3", {"g": "b"}),)),
+        Group({"g": "c"}, (Row("r5", {"g": "c"}),)),
+    ]
+
+
+def test_select_groups_counts_groups_not_rows() -> None:
+    picked = select_groups(_members(), ["g"], {"count": 2}, Rng(1), eligible=_all)
+    assert len(picked) == 2
+    assert len(select_groups(_members(), ["g"], {"rate": 1.0}, Rng(1), eligible=_all)) == 3
+
+
+def test_a_group_with_an_ineligible_row_is_no_candidate() -> None:
+    picked = select_groups(
+        _members(), ["g"], {"rate": 1.0}, Rng(1), eligible=lambda row: row.rid != "r2"
+    )
+    assert [group.key["g"] for group in picked] == ["b", "c"]
+
+
+def test_select_groups_applies_the_candidate_rule() -> None:
+    picked = select_groups(
+        _members(),
+        ["g"],
+        {"rate": 1.0},
+        Rng(1),
+        eligible=_all,
+        candidate=lambda group: len(group.rows) >= 2,
+    )
+    assert [group.key["g"] for group in picked] == ["a"]
+
+
+def test_select_groups_reports_groups_in_its_errors() -> None:
+    with pytest.raises(DataChaosError, match="count 4 is more than the 3 candidate groups"):
+        select_groups(_members(), ["g"], {"count": 4}, Rng(1), eligible=_all)
+
+
+@pytest.mark.parametrize(
+    ("column", "value", "check"),
+    [
+        (
+            Column("e", ColumnType.STRING, False, Role.ENUM, allowed_values=("a", "b")),
+            "a",
+            lambda v: v == "b",
+        ),
+        (Column("b", ColumnType.BOOLEAN, False), True, lambda v: v is False),
+        (Column("i", ColumnType.INTEGER, False), 5, lambda v: v > 5),
+        (Column("d", ColumnType.DECIMAL, False, scale=2), "0.05", lambda v: float(v) > 0.05),
+        (Column("s", ColumnType.STRING, False), "x", lambda v: v == "x-changed"),
+    ],
+)
+def test_other_value_differs_and_stays_valid(column, value, check) -> None:  # type: ignore[no-untyped-def]
+    assert check(other_value(column, value, Rng(1)))
+
+
+def test_other_value_keeps_the_scale_of_a_decimal() -> None:
+    column = Column("d", ColumnType.DECIMAL, False, scale=2)
+    assert re.fullmatch(r"[0-9]+\.[0-9]{2}", str(other_value(column, "0.05", Rng(1))))
 
 
 def test_type_name() -> None:

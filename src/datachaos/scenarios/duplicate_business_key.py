@@ -10,7 +10,6 @@ from datachaos.errors import DataChaosError, FieldError
 from datachaos.model.ledger import LedgerEntry
 from datachaos.model.schema import Column, ColumnType, Role, TableSchema
 from datachaos.model.table import Row, Value
-from datachaos.rng import Rng
 from datachaos.scenarios.base import (
     COMMON_PARAMS,
     BaseScenario,
@@ -25,6 +24,7 @@ from datachaos.scenarios.base import (
     ingestion_column,
     key_of,
     new_rid,
+    other_value,
     select,
     with_rows,
 )
@@ -147,7 +147,7 @@ class DuplicateBusinessKey(BaseScenario):
             if mutate:
                 chosen = ctx.rng.choice(_mutable_columns(schema, row, key_columns))
                 column, before = chosen.name, row.values[chosen.name]
-                after = _other_value(chosen, before, ctx.rng)
+                after = other_value(chosen, before, ctx.rng)
                 values[chosen.name] = after
             rid = new_rid(ctx.index, number)
             copies.append(Row(rid, values))
@@ -244,18 +244,3 @@ def _mutable_columns(schema: TableSchema, row: Row, key_columns: list[str]) -> l
     if not columns:
         raise DataChaosError(f"row {row.rid} has no column that mutate_non_key can change")
     return columns
-
-
-def _other_value(column: Column, value: Value, rng: Rng) -> Value:
-    if column.role is Role.ENUM:
-        return rng.choice([option for option in column.allowed_values if option != value])
-    if column.type is ColumnType.BOOLEAN:
-        return not value
-    if column.type is ColumnType.INTEGER:
-        return cast(int, value) + rng.between(1, 100)
-    if column.type is ColumnType.DECIMAL:
-        units = int(str(value).replace(".", "")) + rng.between(1, 100)
-        scale = column.scale or 0
-        text = str(units).rjust(scale + 1, "0")
-        return f"{text[:-scale]}.{text[-scale:]}" if scale else text
-    return f"{value}-changed"
