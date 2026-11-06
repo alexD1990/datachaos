@@ -4,18 +4,19 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
-from dataclasses import replace
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from datachaos._version import __version__
-from datachaos.config import RunConfig, validate_config
+from datachaos.config import RunConfig, ScenarioConfig, validate_config
 from datachaos.datasets import DATASETS
-from datachaos.errors import DataChaosError
+from datachaos.errors import DataChaosError, FieldError
 from datachaos.io.csv_writer import write_csv
 from datachaos.io.jsonl_writer import write_json, write_jsonl, write_ledger
 from datachaos.io.output_dir import atomic_output, sha256_file
 from datachaos.model.dataset import Dataset
+from datachaos.model.ledger import LedgerEntry
 from datachaos.model.manifest import (
     LEDGER_FILE,
     MANIFEST_FILE,
@@ -28,7 +29,17 @@ from datachaos.model.manifest import (
     compute_content_sha256,
 )
 from datachaos.model.schema import Column, ColumnType, Role, TableSchema
-from datachaos.model.table import Batch, Row, Table
+from datachaos.model.table import Batch, Row, Table, Value
+from datachaos.rng import Rng, derive_seed
+from datachaos.scenarios import SCENARIOS
+from datachaos.scenarios.base import (
+    ResolveContext,
+    ResolvedParams,
+    Scenario,
+    ScenarioContext,
+    did_you_mean,
+    key_of,
+)
 from datachaos.timeutil import (
     batch_index,
     parse_duration,
@@ -41,34 +52,160 @@ ROW_ID_COLUMN = Column("_chaos_rid", ColumnType.STRING, False)
 _WRITERS = {"csv": write_csv, "jsonl": write_jsonl}
 
 
+@dataclass(frozen=True)
+class _Planned:
+    index: int
+    scenario: Scenario
+    table: str
+    params: ResolvedParams
+
+
+@dataclass(frozen=True)
+class _Applied:
+    dataset: Dataset
+    ledger: tuple[LedgerEntry, ...]
+    records: tuple[dict[str, object], ...]
+    warnings: tuple[str, ...]
+
+
 def generate(config: RunConfig, out: Path, *, created_at: str | None = None) -> Manifest:
     """Writes the baseline dataset to `out`. Nothing is written unless the config is valid."""
+    return run(config, out, created_at=created_at)
+
+
+def run(
+    config: RunConfig, out: Path, *, force: bool = False, created_at: str | None = None
+) -> Manifest:
+    """Builds the dataset, applies the scenarios and writes it all to `out`.
+
+    Every scenario is resolved before any runs, and all of them run before anything is written,
+    so an error leaves no output.
+    """
     validate_config(config)
-    dataset = _build_dataset(config)
-    run_id = compute_run_id(config)
-    with atomic_output(out, run_id) as root:
-        files = [_write_empty_ledger(root), *_write_tables(root, dataset, config)]
+    baseline = _build_dataset(config)
+    planned = resolve_scenarios(config, baseline)
+    applied = _apply_scenarios(config, baseline, planned)
+    resolved = replace(
+        config,
+        scenarios=tuple(
+            ScenarioConfig(item.scenario.spec.name, item.table, item.params) for item in planned
+        ),
+    )
+    run_id = compute_run_id(resolved)
+    with atomic_output(out, run_id, force=force) as root:
+        files = [_write_ledger(root, applied.ledger), *_write_tables(root, applied.dataset, config)]
         files.sort(key=lambda entry: entry.path)
         manifest = Manifest(
             tool_version=__version__,
-            run=RunInfo(run_id, created_at or utc_now(), config.seed, config.to_dict()),
+            run=RunInfo(run_id, created_at or utc_now(), config.seed, resolved.to_dict()),
             dataset=DatasetInfo(
-                name=dataset.name,
-                generator_version=dataset.generator_version,
-                as_of=dataset.as_of,
-                batches=dataset.batches,
-                batch_interval=dataset.batch_interval,
+                name=baseline.name,
+                generator_version=baseline.generator_version,
+                as_of=baseline.as_of,
+                batches=baseline.batches,
+                batch_interval=baseline.batch_interval,
                 tables={
-                    name: TableCounts(len(table.rows), len(table.rows))
-                    for name, table in dataset.tables.items()
+                    name: TableCounts(len(table.rows), len(applied.dataset.tables[name].rows))
+                    for name, table in baseline.tables.items()
                 },
             ),
-            scenarios=(),
+            scenarios=applied.records,
             files=tuple(files),
             content_sha256=compute_content_sha256(files),
+            warnings=applied.warnings,
         )
         write_json(root / MANIFEST_FILE, manifest.to_dict())
     return manifest
+
+
+def resolve_scenarios(config: RunConfig, baseline: Dataset) -> tuple[_Planned, ...]:
+    """Resolves every scenario, each against the schema state the earlier ones leave behind."""
+    ctx = ResolveContext(
+        dataset=baseline,
+        schemas={name: table.schema_by_batch for name, table in baseline.tables.items()},
+    )
+    planned = []
+    for index, item in enumerate(config.scenarios):
+        if item.name not in SCENARIOS:
+            raise DataChaosError(
+                f"scenarios[{index}].name: unknown scenario {item.name!r}"
+                f"{did_you_mean(item.name, SCENARIOS)}"
+            )
+        scenario = SCENARIOS[item.name]
+        try:
+            params = scenario.resolve(ctx, item.table, item.params)
+            ctx = replace(ctx, schemas=scenario.schemas_after(ctx, item.table, params))
+        except FieldError as exc:
+            raise DataChaosError(f"scenarios[{index}].{exc.field}: {exc.message}") from exc
+        planned.append(_Planned(index, scenario, item.table, params))
+    return tuple(planned)
+
+
+def _apply_scenarios(
+    config: RunConfig, baseline: Dataset, planned: tuple[_Planned, ...]
+) -> _Applied:
+    dataset = baseline
+    ledger: list[LedgerEntry] = []
+    records: list[dict[str, object]] = []
+    warnings: list[str] = []
+    for item in planned:
+        name = item.scenario.spec.name
+        seed = derive_seed(config.seed, f"scenario:{item.index}:{name}")
+        ctx = ScenarioContext(
+            dataset=dataset,
+            table=item.table,
+            params=item.params,
+            rng=Rng(seed),
+            index=item.index,
+            eligible=_eligibility(dataset, item, ledger),
+        )
+        try:
+            outcome = item.scenario.apply(ctx)
+        except FieldError as exc:
+            raise DataChaosError(f"scenarios[{item.index}].{exc.field}: {exc.message}") from exc
+        except DataChaosError as exc:
+            raise DataChaosError(f"scenarios[{item.index}]: {exc}") from exc
+        problems = item.scenario.check(ctx, outcome)
+        if problems:
+            raise DataChaosError(
+                f"internal error: scenario {name} broke its invariant: {problems[0]}"
+            )
+        dataset = outcome.dataset
+        ledger.extend(outcome.ledger)
+        warnings.extend(outcome.warnings)
+        records.append(
+            {
+                "index": item.index,
+                "name": name,
+                "version": item.scenario.spec.version,
+                "table": item.table,
+                "seed": seed,
+                "params": dict(item.params),
+                "stats": outcome.stats.to_dict(),
+                "ledger_entries": len(outcome.ledger),
+            }
+        )
+    ledger.sort(
+        key=lambda entry: (entry.scenario_index, entry.table, entry.rid, entry.column or "")
+    )
+    return _Applied(dataset, tuple(ledger), tuple(records), tuple(warnings))
+
+
+def _eligibility(
+    dataset: Dataset, item: _Planned, ledger: list[LedgerEntry]
+) -> Callable[[Row], bool]:
+    """A row is not a candidate if an earlier scenario touched it or its business key."""
+    if item.params.get("allow_overlap"):
+        return lambda row: True
+    earlier = [entry for entry in ledger if entry.table == item.table]
+    rids = {entry.rid for entry in earlier} | {entry.source_rid for entry in earlier}
+    keys = {_key_identity(entry.key) for entry in earlier}
+    schema = dataset.tables[item.table].schema_by_batch[0]
+    return lambda row: row.rid not in rids and _key_identity(key_of(row, schema)) not in keys
+
+
+def _key_identity(key: Mapping[str, Value]) -> tuple[tuple[str, Value], ...]:
+    return tuple(sorted(key.items(), key=lambda item: item[0]))
 
 
 def compute_run_id(config: RunConfig) -> str:
@@ -110,8 +247,8 @@ def _build_dataset(config: RunConfig) -> Dataset:
     )
 
 
-def _write_empty_ledger(root: Path) -> FileEntry:
-    rows = write_ledger(root / LEDGER_FILE, ())
+def _write_ledger(root: Path, entries: Sequence[LedgerEntry]) -> FileEntry:
+    rows = write_ledger(root / LEDGER_FILE, entries)
     return FileEntry(LEDGER_FILE, sha256_file(root / LEDGER_FILE), rows)
 
 

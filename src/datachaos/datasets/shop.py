@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from datachaos.model.dataset import Dataset
 from datachaos.model.schema import Column, ColumnType, Role, TableSchema
-from datachaos.model.table import Row, Table
+from datachaos.model.table import Row, Table, sorted_rows
 from datachaos.rng import Rng, derive_seed
 from datachaos.timeutil import format_timestamp, parse_duration, parse_timestamp, window_start
 
@@ -237,10 +237,7 @@ def _event_ids(number: int) -> tuple[str, str]:
 
 
 def _table(schema: TableSchema, batches: int, rows: list[Row]) -> Table:
-    return Table(
-        schema_by_batch=(schema,) * batches,
-        rows=tuple(sorted(rows, key=lambda row: (str(row.values["ingested_at"]), row.rid))),
-    )
+    return Table(schema_by_batch=(schema,) * batches, rows=sorted_rows(schema, rows))
 
 
 def _format_cents(cents: int) -> str:

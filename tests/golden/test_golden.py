@@ -9,19 +9,11 @@ from pathlib import Path
 import pytest
 
 from datachaos import engine
-from datachaos.config import DatasetConfig, OutputConfig, RunConfig
+from datachaos.config import load_config
 
 GOLDEN = Path(__file__).resolve().parent
 CREATED_AT = "2000-01-01T00:00:00Z"
-CASES = {
-    "baseline_small": RunConfig(
-        seed=20260101,
-        dataset=DatasetConfig(
-            as_of="2026-01-08T00:00:00Z", customers=20, orders=50, batches=3, batch_interval="1d"
-        ),
-        output=OutputConfig(formats=("csv", "jsonl")),
-    ),
-}
+CASES = sorted(path.parent.name for path in GOLDEN.glob("*/chaos.yml"))
 
 
 def _tree(root: Path) -> dict[str, bytes]:
@@ -32,11 +24,15 @@ def _tree(root: Path) -> dict[str, bytes]:
     }
 
 
-@pytest.mark.parametrize("case", sorted(CASES))
+def test_the_cases_are_found() -> None:
+    assert "baseline_small" in CASES
+
+
+@pytest.mark.parametrize("case", CASES)
 def test_output_matches_golden_files(case: str, tmp_path: Path) -> None:
     out = tmp_path / "out"
-    engine.generate(CASES[case], out, created_at=CREATED_AT)
-    expected = GOLDEN / case
+    engine.run(load_config(GOLDEN / case / "chaos.yml"), out, created_at=CREATED_AT)
+    expected = GOLDEN / case / "expected"
     if os.environ.get("DATACHAOS_UPDATE_GOLDEN") == "1":
         if expected.exists():
             shutil.rmtree(expected)
