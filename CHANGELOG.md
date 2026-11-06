@@ -22,13 +22,14 @@ All notable changes to this project are documented in this file. The format is b
   earlier output, but only when its manifest lists every file in the directory.
 - `datachaos list-scenarios` and `datachaos describe`, with `--output json`, and
   `docs/scenarios.md` generated from the same specs.
-- `--output json` on `generate` and `run`: stdout holds only one JSON document with `schema_version`
+- `--output json` on `generate`, `run`, `validate` and `report`: stdout holds only one JSON document with `schema_version`
   and `tool_version`, and warnings go to stderr.
 - `datachaos validate`, and `datachaos.validate()`. Without flags it checks what can be decided from
   disk: hashes, columns per batch schema, schema changes, and that each ledger line can be observed.
   It never reports what it cannot prove: without `--emit-row-ids`, a line whose key is shared or NULL
   counts as unverifiable, with a warning and exit 0. `--reproduce` also runs the config in the manifest
   again, which checks the scenario invariants.
+- `datachaos report`: a summary per scenario, from the manifest and the ledger alone.
 - Running a scenario: every scenario is validated before any runs, each against the schema state
   the earlier ones leave behind, and a scenario's invariant is checked right after it runs. All
   changes go to `chaos-ledger.jsonl`. A scenario does not select rows whose key or group an earlier

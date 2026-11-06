@@ -14,6 +14,7 @@ from datachaos import engine
 from datachaos._version import __version__
 from datachaos.errors import DataChaosError
 from datachaos.model.manifest import Manifest
+from datachaos.report import build_report, render_report
 from datachaos.validate import validate_dir
 
 _FORMATS = {"csv": ("csv",), "jsonl": ("jsonl",), "both": ("csv", "jsonl")}
@@ -53,6 +54,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_list_scenarios(commands)
     _add_describe(commands)
     _add_validate(commands)
+    _add_report(commands)
     return parser
 
 
@@ -152,6 +154,17 @@ def _add_validate(commands: argparse._SubParsersAction[_Parser]) -> None:
             "invariant of every scenario, and require identical files"
         ),
     )
+    _add_output(parser)
+    _add_verbose(parser)
+
+
+def _add_report(commands: argparse._SubParsersAction[_Parser]) -> None:
+    parser = commands.add_parser(
+        "report",
+        help="summarize a run per scenario, from its manifest and ledger",
+        description="Summarizes a run. Checks nothing; use validate for that.",
+    )
+    parser.add_argument("directory", type=Path)
     _add_output(parser)
     _add_verbose(parser)
 
@@ -268,6 +281,15 @@ def _run_validate(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def _run_report(args: argparse.Namespace) -> int:
+    report = build_report(args.directory)
+    if args.output == "json":
+        _print_json(report)
+    else:
+        print(render_report(report), end="")
+    return 0
+
+
 def _print_json(document: dict[str, object]) -> None:
     versions = {"schema_version": "1.0", "tool_version": __version__}
     print(json.dumps({**versions, **document}, ensure_ascii=False, indent=2))
@@ -284,6 +306,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_describe(args)
     if args.command == "validate":
         return _run_validate(args)
+    if args.command == "report":
+        return _run_report(args)
     raise DataChaosError("no command given (see --help)")
 
 

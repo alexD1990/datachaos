@@ -248,7 +248,7 @@ def _check_batch_of_rows(
             )
 
 
-def _read_ledger(directory: Path, problems: list[Problem]) -> list[dict[str, Any]] | None:
+def read_ledger(directory: Path, problems: list[Problem]) -> list[dict[str, Any]] | None:
     try:
         with open(directory / LEDGER_FILE, encoding="utf-8", newline="") as file:
             lines = [json.loads(line) for line in file]
@@ -486,7 +486,7 @@ def validate_dir(directory: Path, *, reproduce: bool = False) -> ValidationResul
         raise DataChaosError(f"{directory / MANIFEST_FILE} is not a valid manifest: {exc}") from exc
     counts = LedgerCounts()
     reasons: Counter[str] = Counter()
-    lines = _read_ledger(directory, problems)
+    lines = read_ledger(directory, problems)
     if lines is not None:
         counts, reasons = _check_ledger(lines, tables, problems)
     if reproduce:
