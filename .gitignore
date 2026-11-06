@@ -8,4 +8,3 @@ dist/
 .ruff_cache/
 .mypy_cache/
 .mcp/
-docs/build-plan.md

@@ -28,6 +28,12 @@ classifiers = [
 ]
 dependencies = ["pyyaml>=6"]
 
+[project.urls]
+Homepage = "https://github.com/alexD1990/datachaos"
+Repository = "https://github.com/alexD1990/datachaos"
+Changelog = "https://github.com/alexD1990/datachaos/blob/master/CHANGELOG.md"
+Issues = "https://github.com/alexD1990/datachaos/issues"
+
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff==0.16.9", "mypy==2.3.1", "jsonschema>=4.18", "types-PyYAML"]
 
@@ -47,6 +53,7 @@ exclude = [".github"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+extend-exclude = ["docs/build-plan.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
