@@ -76,7 +76,12 @@ def generate(config: RunConfig, out: Path, *, created_at: str | None = None) -> 
 
 
 def run(
-    config: RunConfig, out: Path, *, force: bool = False, created_at: str | None = None
+    config: RunConfig,
+    out: Path,
+    *,
+    force: bool = False,
+    created_at: str | None = None,
+    based_on: Mapping[str, str] | None = None,
 ) -> Manifest:
     """Builds the dataset, applies the scenarios and writes it all to `out`.
 
@@ -99,7 +104,7 @@ def run(
         files.sort(key=lambda entry: entry.path)
         manifest = Manifest(
             tool_version=__version__,
-            run=RunInfo(run_id, created_at or utc_now(), config.seed, resolved.to_dict()),
+            run=RunInfo(run_id, created_at or utc_now(), config.seed, resolved.to_dict(), based_on),
             dataset=DatasetInfo(
                 name=baseline.name,
                 generator_version=baseline.generator_version,

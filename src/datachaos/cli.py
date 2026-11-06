@@ -13,6 +13,7 @@ from datachaos import config as _config
 from datachaos import engine
 from datachaos._version import __version__
 from datachaos.errors import DataChaosError
+from datachaos.inject import inject
 from datachaos.model.manifest import Manifest
 from datachaos.report import build_report, render_report
 from datachaos.validate import validate_dir
@@ -55,6 +56,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_describe(commands)
     _add_validate(commands)
     _add_report(commands)
+    _add_inject(commands)
     return parser
 
 
@@ -169,6 +171,29 @@ def _add_report(commands: argparse._SubParsersAction[_Parser]) -> None:
     _add_verbose(parser)
 
 
+def _add_inject(commands: argparse._SubParsersAction[_Parser]) -> None:
+    parser = commands.add_parser(
+        "inject",
+        help="add a scenario to earlier output, in a new directory",
+        description=(
+            "Runs the config in the manifest of --input again, with the scenario at the end. "
+            "First checks that this gives the content of --input, which needs the same DataChaos "
+            "version. The new manifest records which run it builds on."
+        ),
+    )
+    parser.add_argument("--input", required=True, type=Path, help="earlier DataChaos output")
+    parser.add_argument(
+        "--out", required=True, type=Path, help="output directory (missing or empty)"
+    )
+    parser.add_argument("--scenario", required=True)
+    parser.add_argument("--table", required=True)
+    parser.add_argument(
+        "--param", action="append", default=[], metavar="KEY=VALUE", help="scenario parameter"
+    )
+    _add_output(parser)
+    _add_verbose(parser)
+
+
 def _config_from_flags(
     args: argparse.Namespace, scenarios: tuple[_config.ScenarioConfig, ...] = ()
 ) -> _config.RunConfig:
@@ -202,6 +227,7 @@ def _report_run(out: Path, manifest: Manifest, output: str) -> None:
                 "status": "ok",
                 "directory": str(out),
                 "run_id": manifest.run.run_id,
+                **({"based_on": dict(manifest.run.based_on)} if manifest.run.based_on else {}),
                 "content_sha256": manifest.content_sha256,
                 "tables": manifest.to_dict()["dataset"]["tables"],  # type: ignore[index]
                 "scenarios": list(manifest.scenarios),
@@ -210,6 +236,8 @@ def _report_run(out: Path, manifest: Manifest, output: str) -> None:
         )
         return
     print(f"wrote {out} (run {manifest.run.run_id})")
+    if manifest.run.based_on:
+        print(f"  based on run {manifest.run.based_on['run_id']}")
     for name, counts in manifest.dataset.tables.items():
         print(f"  {name}: {counts.rows_final} rows")
     for record in manifest.scenarios:
@@ -290,6 +318,12 @@ def _run_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_inject(args: argparse.Namespace) -> int:
+    scenario = _config.ScenarioConfig(args.scenario, args.table, _config.parse_params(args.param))
+    _report_run(args.out, inject(args.input, args.out, scenario), args.output)
+    return 0
+
+
 def _print_json(document: dict[str, object]) -> None:
     versions = {"schema_version": "1.0", "tool_version": __version__}
     print(json.dumps({**versions, **document}, ensure_ascii=False, indent=2))
@@ -308,6 +342,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_validate(args)
     if args.command == "report":
         return _run_report(args)
+    if args.command == "inject":
+        return _run_inject(args)
     raise DataChaosError("no command given (see --help)")
 
 

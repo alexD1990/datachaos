@@ -36,6 +36,7 @@ class RunInfo:
     created_at: str
     seed: int
     config: Mapping[str, object]
+    based_on: Mapping[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,7 @@ class Manifest:
                 "created_at": self.run.created_at,
                 "seed": self.run.seed,
                 "config": dict(self.run.config),
+                **({"based_on": dict(self.run.based_on)} if self.run.based_on else {}),
             },
             "dataset": {
                 "name": self.dataset.name,
