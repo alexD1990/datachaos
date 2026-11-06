@@ -14,6 +14,7 @@ from datachaos import engine
 from datachaos._version import __version__
 from datachaos.errors import DataChaosError
 from datachaos.inject import inject
+from datachaos.land import land
 from datachaos.model.manifest import Manifest
 from datachaos.report import build_report, render_report
 from datachaos.validate import validate_dir
@@ -57,6 +58,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_validate(commands)
     _add_report(commands)
     _add_inject(commands)
+    _add_land(commands)
     return parser
 
 
@@ -194,6 +196,23 @@ def _add_inject(commands: argparse._SubParsersAction[_Parser]) -> None:
     _add_verbose(parser)
 
 
+def _add_land(commands: argparse._SubParsersAction[_Parser]) -> None:
+    parser = commands.add_parser(
+        "land",
+        help="copy batches up to one to a landing directory",
+        description=(
+            "Copies the data and schema files of batch 0 up to --upto-batch to "
+            "LANDING/<table>/ and LANDING/schemas/<table>/. Never deletes or overwrites: an equal "
+            "file is skipped, and a different one stops it before anything is copied."
+        ),
+    )
+    parser.add_argument("directory", type=Path)
+    parser.add_argument("--upto-batch", required=True, type=int)
+    parser.add_argument("--to", required=True, type=Path, metavar="LANDING_DIR")
+    _add_output(parser)
+    _add_verbose(parser)
+
+
 def _config_from_flags(
     args: argparse.Namespace, scenarios: tuple[_config.ScenarioConfig, ...] = ()
 ) -> _config.RunConfig:
@@ -324,6 +343,18 @@ def _run_inject(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_land(args: argparse.Namespace) -> int:
+    result = land(args.directory, args.upto_batch, args.to)
+    if args.output == "json":
+        _print_json(result.to_dict())
+    else:
+        print(
+            f"landed batches up to {result.upto_batch} in {args.to}: "
+            f"{result.copied} files copied, {result.skipped} already there"
+        )
+    return 0
+
+
 def _print_json(document: dict[str, object]) -> None:
     versions = {"schema_version": "1.0", "tool_version": __version__}
     print(json.dumps({**versions, **document}, ensure_ascii=False, indent=2))
@@ -344,6 +375,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_report(args)
     if args.command == "inject":
         return _run_inject(args)
+    if args.command == "land":
+        return _run_land(args)
     raise DataChaosError("no command given (see --help)")
 
 
