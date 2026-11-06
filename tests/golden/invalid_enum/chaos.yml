@@ -1,0 +1,18 @@
+version: 1
+seed: 20260104
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 20
+  orders: 50
+  batches: 3
+  batch_interval: 1d
+scenarios:
+  - name: invalid-enum
+    table: orders
+    params: {column: status, count: 3}
+  - name: invalid-enum
+    table: orders
+    params: {column: currency, count: 3, variant: case_change}
+  - name: invalid-enum
+    table: customers
+    params: {column: country_code, count: 2, variant: whitespace}

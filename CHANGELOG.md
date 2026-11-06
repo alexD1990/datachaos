@@ -21,7 +21,7 @@ All notable changes to this project are documented in this file. The format is b
 - `datachaos.run()`, which runs a YAML config. Every scenario is validated before any runs, each
   against the schema state the earlier ones leave behind, and a scenario's invariant is checked
   right after it runs. All changes go to `chaos-ledger.jsonl`.
-- Scenarios `duplicate-business-key` and `null-critical-column`. The manifest warns when NULL is
+- Scenarios `duplicate-business-key`, `null-critical-column` and `invalid-enum`. The manifest warns when NULL is
   written to a column the schema says is not nullable.
 
 ### Changed

@@ -1,0 +1,4 @@
+order_id,customer_id,order_timestamp,updated_at,status,amount,currency,source_system,ingested_at
+O000020,C000005,2026-01-05T20:06:55Z,2026-01-05T20:06:55Z,created,3231.78,EUR,webshop,2026-01-05T20:35:52Z
+O000001,C000006,2026-01-05T21:17:07Z,2026-01-05T21:17:07Z,created,20997.79,SEK,webshop,2026-01-05T21:27:30Z
+O000006,C000006,2026-01-05T23:45:43Z,2026-01-05T23:45:43Z,created,40672.58,SEK,webshop,2026-01-05T23:50:23Z
