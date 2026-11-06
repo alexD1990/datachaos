@@ -24,7 +24,8 @@ All notable changes to this project are documented in this file. The format is b
   `docs/scenarios.md` generated from the same specs.
 - Running a scenario: every scenario is validated before any runs, each against the schema state
   the earlier ones leave behind, and a scenario's invariant is checked right after it runs. All
-  changes go to `chaos-ledger.jsonl`.
+  changes go to `chaos-ledger.jsonl`. A scenario does not select rows whose key or group an earlier
+  one has touched, unless `allow_overlap` is set.
 - Scenarios `duplicate-business-key`, `null-critical-column`, `invalid-enum`,
   `orphaned-foreign-key`, `late-arriving-data`, `out-of-order-events` and `historical-update`. The manifest warns when NULL is written to a column the schema says is not nullable.
 

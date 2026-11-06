@@ -4,7 +4,7 @@ DataChaos will generate a synthetic, deterministic dataset delivered in batches,
 controlled data quality faults, keep a ledger of exactly what changed, and check whether your
 pipeline's dbt tests caught the faults.
 
-**Status:** early development. The clean baseline dataset can be generated and three of the eight
+**Status:** early development. The clean baseline dataset can be generated and seven of the eight
 planned scenarios can inject faults; checking dbt results is not implemented yet.
 
 ## Install
@@ -74,8 +74,12 @@ The same version and settings give byte-identical data files, ledger and manifes
 ```console
 $ datachaos list-scenarios
 duplicate-business-key  Adds a second row with the same business key.
+historical-update       Adds a new version of old rows in a later batch, with a new updated_at.
 invalid-enum            Replaces a category with a value outside the allowed values.
+late-arriving-data      Delays ingested_at, so that rows land in a later batch than their event time.
 null-critical-column    Sets a column to NULL, whether or not the schema allows it.
+orphaned-foreign-key    Makes foreign keys point at a parent that does not exist.
+out-of-order-events     Holds back the next to last event of a group, so that it lands after the last.
 ```
 
 `datachaos describe <scenario>` shows what a scenario detects and its parameters, and
@@ -129,7 +133,7 @@ datachaos run --out chaos --scenario invalid-enum --table orders --param column=
 {"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000002","source_rid":"o000190","key":{"order_id":"O000190"},"batch":1,"column":null,"before":null,"after":null}
 ```
 
-- By default a scenario does not select a row whose key an earlier scenario has touched.
+- By default a scenario does not select a row whose key or group an earlier scenario has touched.
   `allow_overlap: true` turns that off.
 - Everything is validated before any scenario runs, and all scenarios run before anything is
   written, so an error leaves no output.

@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "0.1.0",
+  "table": "orders",
+  "kind": "entity",
+  "batch": 2,
+  "columns": [
+    {
+      "name": "order_id",
+      "type": "string",
+      "nullable": false,
+      "role": "key"
+    },
+    {
+      "name": "customer_id",
+      "type": "string",
+      "nullable": false,
+      "role": "foreign_key",
+      "references": "customers.customer_id"
+    },
+    {
+      "name": "order_timestamp",
+      "type": "timestamp",
+      "nullable": false,
+      "role": "event_time"
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp",
+      "nullable": false,
+      "role": "updated_at"
+    },
+    {
+      "name": "status",
+      "type": "string",
+      "nullable": false,
+      "role": "enum",
+      "allowed_values": [
+        "created",
+        "paid",
+        "shipped",
+        "delivered",
+        "cancelled"
+      ]
+    },
+    {
+      "name": "amount",
+      "type": "decimal",
+      "nullable": false,
+      "role": "attribute",
+      "scale": 2
+    },
+    {
+      "name": "currency",
+      "type": "string",
+      "nullable": false,
+      "role": "enum",
+      "allowed_values": [
+        "NOK",
+        "SEK",
+        "DKK",
+        "EUR"
+      ]
+    },
+    {
+      "name": "source_system",
+      "type": "string",
+      "nullable": false,
+      "role": "enum",
+      "allowed_values": [
+        "webshop",
+        "pos",
+        "b2b_api"
+      ]
+    },
+    {
+      "name": "ingested_at",
+      "type": "timestamp",
+      "nullable": false,
+      "role": "ingestion_time"
+    },
+    {
+      "name": "_chaos_rid",
+      "type": "string",
+      "nullable": false,
+      "role": "attribute"
+    }
+  ]
+}

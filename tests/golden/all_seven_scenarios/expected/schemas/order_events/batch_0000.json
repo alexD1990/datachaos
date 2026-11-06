@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "0.1.0",
+  "table": "order_events",
+  "kind": "event_log",
+  "batch": 0,
+  "columns": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "nullable": false,
+      "role": "key"
+    },
+    {
+      "name": "order_id",
+      "type": "string",
+      "nullable": false,
+      "role": "foreign_key",
+      "references": "orders.order_id"
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "nullable": false,
+      "role": "enum",
+      "allowed_values": [
+        "created",
+        "paid",
+        "shipped",
+        "delivered",
+        "cancelled"
+      ]
+    },
+    {
+      "name": "event_time",
+      "type": "timestamp",
+      "nullable": false,
+      "role": "event_time"
+    },
+    {
+      "name": "ingested_at",
+      "type": "timestamp",
+      "nullable": false,
+      "role": "ingestion_time"
+    },
+    {
+      "name": "_chaos_rid",
+      "type": "string",
+      "nullable": false,
+      "role": "attribute"
+    }
+  ]
+}

@@ -373,6 +373,12 @@ tidligere (null-setter nøkkelen som nettopp ble duplisert), og ledgeren blir fe
 
 - **Standard: eksklusivitet per forretningsnøkkel og tabell.** En rad hvis `KEY`-verdi er
   berørt av et tidligere scenario er ikke kandidat. Engine bygger `eligible`-filteret.
+- **Grupper.** Scenarioer som virker per gruppe setter `group` på ledger-linjene sine, for eksempel
+  `{"order_id":"O000031"}`. Engine leser berørte grupper fra ledgeren, som rid og nøkler. Senere
+  scenarioer velger ikke rader fra en berørt gruppe i samme tabell. Et gruppescenario velger bare
+  grupper der alle radene er kandidater, og `rate` og `count` teller da grupper. NULL i
+  gruppekolonnen betyr ingen gruppe.
+- Scenarioer som også velger fra en annen tabell bruker `ctx.eligible_in(tabell)`.
 - `allow_overlap: true` på scenarioet slår det av. Ledgeren blir fortsatt korrekt fordi den
   skriver før-/etterverdi per endring, men `validate` kan da bare sjekke siste tilstand.
 - Kolonne-schema-drift (`drop_column`, `rename_column`) på en kolonne som et tidligere
@@ -387,7 +393,14 @@ tidligere (null-setter nøkkelen som nettopp ble duplisert), og ledgeren blir fe
 {"scenario_index":1,"scenario":"null-critical-column","table":"orders","action":"set_value","rid":"o000052","key":{"order_id":"O000052"},"batch":0,"column":"customer_id","before":"C000031","after":null}
 ```
 
-`action` ∈ `insert_row`, `delete_row`, `set_value`, `move_batch`, `schema_change`.
+`action` ∈ `insert_row`, `delete_row`, `set_value`, `move_batch`, `orphan_row`, `schema_change`.
+
+- `set_value` har `column`, `before` og `after`.
+- `move_batch` har gammel og ny batch i `before` og `after`, og `batch` er den nye. Det følger en
+  `set_value` på `ingested_at`, som også har den nye batchen i `batch`.
+- `orphan_row` markerer en rad som mistet forelderen uten selv å endres: `column` er FK-kolonnen,
+  og `before` og `after` er like.
+- `group` er valgfritt, står etter `key` og utelates når det ikke er satt (§ 7.3).
 Ledgeren er grunnlaget for `validate`, for `report`, og for å gi brukeren konkrete verdier å
 spore med `dgt` (§ 15, punkt 4).
 
@@ -444,9 +457,12 @@ inkrementelle modeller. Alle har `rate`/`count` og `allow_overlap` i tillegg til
   `deleted_parent`). `nonexistent` setter verdien til en ID som garantert ikke finnes
   (`C9xxxxx`-serie). `deleted_parent` fjerner den refererte forelderen fra foreldertabellen
   (det eneste scenarioet som fjerner rader; ledger `action: "delete_row"`).
-- **Utvalg ved `deleted_parent`:** `rate`/`count` velger foreldre (kunder), ikke barn. Alle
-  barnerader som peker på en slettet forelder blir foreldreløse og føres i ledgeren som
-  berørte (de regnes også som brukt i eksklusivitetsregelen, § 7.3).
+- **`table`** er alltid barnetabellen, altså den med FK-kolonnen. Forelderen utledes fra
+  `references`. `nonexistent` velger bare rader som fortsatt peker på en forelder.
+- **Utvalg ved `deleted_parent`:** `rate`/`count` velger foreldre (kunder), ikke barn, og bare
+  foreldre med minst ett barn. Forelderen og alle barna må være kandidater. Alle rader med den
+  slettede nøkkelen fjernes (`delete_row` i foreldertabellen). Hver barnerad som blir foreldreløs
+  får en egen `orphan_row`-linje i barnetabellen, så eksklusiviteten (§ 7.3) ser dem der.
 - **Invariant:** hver berørt verdi finnes ikke i den refererte kolonnen (anti-join tom
   for treff); ved `nonexistent` er foreldertabellen uendret.
 
@@ -456,8 +472,11 @@ inkrementelle modeller. Alle har `rate`/`count` og `allow_overlap` i tillegg til
   sene rader. **dbt-test:** egen singular test som sammenligner inkrementell og full
   refresh (§ 14, fase 6).
 - **Gjelder:** begge; mest meningsfull på `order_events`.
-- **Parametere:** `delay_min`, `delay_max` (varighet, f.eks. `"6h"`, `"3d"`). Valideres mot
-  `as_of` for alle kandidatrader ved oppstart.
+- **Parametere:** `delay_min`, `delay_max` (varighet, f.eks. `"6h"`, `"3d"`), med
+  `0 < delay_min ≤ delay_max`.
+- **Kandidater:** rader der `ingested_at + delay_max < as_of`, og `rate` er en andel av disse. Hvis
+  ingen rader passer, er det en feil ved oppstart som nevner `delay_max`. (En rad like før `as_of`
+  kan aldri bli sen, så alle rader kan ikke være kandidater.)
 - **Transformasjon:** `ingested_at += delay` (jevnt fordelt i intervallet, hele sekunder).
   Event time røres ikke. Batch følger av ny `ingested_at`.
 - **Invariant:** event time uendret; `delay_min ≤ ny − gammel ≤ delay_max`; ledger har
@@ -469,12 +488,18 @@ inkrementelle modeller. Alle har `rate`/`count` og `allow_overlap` i tillegg til
   `event_time`, eller som antar at events kommer i rekkefølge. **dbt-test:** singular test på
   at nåværende status = status fra siste `event_time`.
 - **Gjelder:** `event_log`.
-- **Parametere:** `group_by` (standard: FOREIGN_KEY-kolonnen, dvs. `order_id`).
-- **Transformasjon:** for hver valgt gruppe med ≥ 2 events, bytt `ingested_at` mellom siste
-  og nest siste event (etter event_time). Event time røres ikke. Dette er definisjonen; ikke
-  «stokk radene i fila», som ikke har noen betydning i SQL.
+- **Parametere:** `group_by` (standard: FOREIGN_KEY-kolonnen, dvs. `order_id`; kan ikke være KEY).
+  `rate` og `count` velger grupper.
+- **Kandidater:** grupper med ≥ 2 events der de to siste (etter event_time) er i riktig rekkefølge
+  og det er plass før `as_of`.
+- **Transformasjon:** hold nest siste event tilbake, så den lander etter siste event: ny
+  `ingested_at` er tilfeldig fra siste events `ingested_at` + 1 s til 6 t senere, begrenset av
+  `as_of`. Event time røres ikke. Dette er definisjonen; ikke «stokk radene i fila», som ikke har
+  noen betydning i SQL, og ikke et bytte av `ingested_at`, som ville latt siste event lande før sin
+  egen `event_time`.
 - **Invariant:** i hver berørt gruppe er rekkefølgen på `ingested_at` ulik rekkefølgen på
-  `event_time`; antall rader uendret.
+  `event_time`; ingen rad lander på eller etter `as_of`; antall rader uendret. Ledger-linjene har
+  `group`, så senere scenarioer holder seg unna hele gruppen.
 
 ### 8.7 `historical-update`
 
@@ -483,9 +508,14 @@ inkrementelle modeller. Alle har `rate`/`count` og `allow_overlap` i tillegg til
 - **Gjelder:** `entity`.
 - **Parametere:** `older_than` (varighet relativt til `as_of`, f.eks. `"3d"`),
   `columns` (standard `["status", "amount"]`), `in_batch` (standard: siste batch).
-- **Transformasjon:** for valgte rader med event time < `as_of − older_than`: legg til en
-  **ny versjon** av raden i `in_batch` med endrede verdier, ny `updated_at` og ny
-  `ingested_at` innenfor batchen. Originalraden beholdes, slik en kilde med inkrementell
+- **`columns`** må være ENUM- eller ATTRIBUTE-kolonner, så `customers` må oppgi sine egne.
+  `in_batch` oppløses til et tall fra 1, og `batches: 1` er en feil.
+- **Kandidater:** rader med event time < `as_of − older_than` som ligger i en tidligere batch enn
+  `in_batch`. (En ny versjon i samme batch ville kommet samtidig med originalen.)
+- **Transformasjon:** for valgte rader: legg til en **ny versjon** av raden i `in_batch` med endrede
+  verdier, ny `updated_at` (innen 30 min før ny `ingested_at`, og etter den gamle) og ny
+  `ingested_at` innenfor batchen. Ledgeren har `insert_row` og én `set_value` per endret kolonne.
+  Ny `status` er en annen gyldig verdi, uten kobling til `order_events`. Originalraden beholdes, slik en kilde med inkrementell
   uttrekking oppfører seg. (ChatGPT-versjonen endret raden på stedet; det tester ikke det
   pipelinen faktisk møter.)
 - **Invariant:** nøkkel uendret; ny `updated_at` > gammel; event time uendret;
@@ -573,11 +603,21 @@ at de alltid stemmer overens.
     {"index": 0, "name": "duplicate-business-key", "version": 1, "table": "orders",
      "seed": 1234567890123, "params": {...}, "stats": {...}, "ledger_entries": 20}
   ],
-  "files": [{"path": "data/orders/batch_0000.csv", "sha256": "...", "rows": 143}],
-  "content_sha256": "...",       // over ledger + alle datafiler i sortert rekkefølge
+  "files": [
+    {"path": "chaos-ledger.jsonl", "sha256": "...", "rows": 20},
+    {"path": "data/orders/batch_0000.csv", "sha256": "...", "rows": 143},
+    {"path": "schemas/orders/batch_0000.json", "sha256": "..."}
+  ],
+  "content_sha256": "...",       // se under
   "warnings": []
 }
 ```
+
+`files` lister ledgeren, datafilene og schema-filene, sortert på sti, men ikke manifestet selv. `rows`
+finnes bare for ledgeren og datafilene. Stier bruker `/` som skilletegn på alle operativsystemer.
+
+`content_sha256` dekker ledgeren og datafilene, ikke schema-filene: SHA-256 over UTF-8-teksten med én
+linje `<sha256>  <sti>\n` per fil, sortert på sti (ikke på hele linja).
 
 JSON Schema i `schema/` (2020-12), og testene validerer hvert manifest mot det (samme
 mønster som `dgt`). `jsonschema` er dev-avhengighet.

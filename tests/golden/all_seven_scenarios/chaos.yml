@@ -1,0 +1,33 @@
+version: 1
+seed: 20260110
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 20
+  orders: 80
+  batches: 4
+  batch_interval: 1d
+output:
+  formats: [csv]
+  emit_row_ids: true
+scenarios:
+  - name: duplicate-business-key
+    table: orders
+    params: {count: 4}
+  - name: null-critical-column
+    table: orders
+    params: {column: source_system, count: 4}
+  - name: invalid-enum
+    table: orders
+    params: {column: currency, count: 4, variant: case_change}
+  - name: orphaned-foreign-key
+    table: orders
+    params: {mode: deleted_parent, count: 2}
+  - name: late-arriving-data
+    table: order_events
+    params: {count: 8, delay_min: 6h, delay_max: 1d}
+  - name: out-of-order-events
+    table: order_events
+    params: {count: 5}
+  - name: historical-update
+    table: orders
+    params: {older_than: 1d, count: 4}

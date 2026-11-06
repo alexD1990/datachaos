@@ -7,10 +7,10 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from helpers import apply_all, by_rid, config, context, tamper
+from helpers import SMALL, apply_all, by_rid, config, context, tamper
 
 from datachaos import engine
-from datachaos.config import ScenarioConfig
+from datachaos.config import DatasetConfig, ScenarioConfig
 from datachaos.errors import DataChaosError
 from datachaos.scenarios import SCENARIOS
 
@@ -104,16 +104,15 @@ def test_orphan_lines_are_correct_and_the_children_are_unchanged() -> None:
 
 
 def test_deleted_parent_only_selects_parents_with_children() -> None:
-    result = apply_all(_orphan(mode="deleted_parent", rate=1.0))
+    settings = DatasetConfig(as_of=SMALL.as_of, customers=100, orders=20, batches=3)
+    result = apply_all(_orphan(mode="deleted_parent", rate=1.0), settings=settings)
     with_children = _ids(result.baseline, "orders", "customer_id")
-    assert _ids(result.dataset, "customers", "customer_id") == (
-        _ids(result.baseline, "customers", "customer_id") - with_children
-    )
-    assert all(
-        entry.key["customer_id"] in with_children
-        for entry in result.ledger
-        if entry.action == "delete_row"
-    )
+    everyone = _ids(result.baseline, "customers", "customer_id")
+    assert with_children < everyone
+    assert _ids(result.dataset, "customers", "customer_id") == everyone - with_children
+    assert {
+        entry.key["customer_id"] for entry in result.ledger if entry.action == "delete_row"
+    } == with_children
 
 
 def test_deleted_parent_works_on_the_event_log_without_touching_customers() -> None:
