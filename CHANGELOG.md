@@ -29,4 +29,6 @@ All notable changes to this project are documented in this file. The format is b
   when NULL is written to a column the schema says is not nullable.
 
 ### Changed
+- Orders are spread evenly over the time window, instead of piling up towards the end. Generator
+  version 2 therefore gives other data than version 1. Late customers can be without orders.
 - CI also runs on macOS and Windows with Python 3.12.

@@ -1,8 +1,8 @@
-{"scenario_index":0,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000002","key":{"order_id":"O000002"},"batch":2,"column":"status","before":"created","after":"UNKNOWN"}
+{"scenario_index":0,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000002","key":{"order_id":"O000002"},"batch":1,"column":"status","before":"created","after":"UNKNOWN"}
 {"scenario_index":0,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000016","key":{"order_id":"O000016"},"batch":2,"column":"status","before":"created","after":"UNKNOWN"}
-{"scenario_index":0,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000028","key":{"order_id":"O000028"},"batch":2,"column":"status","before":"created","after":"UNKNOWN"}
-{"scenario_index":1,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000013","key":{"order_id":"O000013"},"batch":1,"column":"currency","before":"SEK","after":"sek"}
-{"scenario_index":1,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000021","key":{"order_id":"O000021"},"batch":1,"column":"currency","before":"SEK","after":"sek"}
+{"scenario_index":0,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000028","key":{"order_id":"O000028"},"batch":0,"column":"status","before":"created","after":"UNKNOWN"}
+{"scenario_index":1,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000013","key":{"order_id":"O000013"},"batch":2,"column":"currency","before":"EUR","after":"eur"}
+{"scenario_index":1,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000021","key":{"order_id":"O000021"},"batch":2,"column":"currency","before":"NOK","after":"nok"}
 {"scenario_index":1,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000034","key":{"order_id":"O000034"},"batch":2,"column":"currency","before":"NOK","after":"nok"}
-{"scenario_index":2,"scenario":"invalid-enum","table":"customers","action":"set_value","rid":"c000004","key":{"customer_id":"C000004"},"batch":1,"column":"country_code","before":"SE","after":"SE "}
+{"scenario_index":2,"scenario":"invalid-enum","table":"customers","action":"set_value","rid":"c000004","key":{"customer_id":"C000004"},"batch":0,"column":"country_code","before":"NO","after":"NO "}
 {"scenario_index":2,"scenario":"invalid-enum","table":"customers","action":"set_value","rid":"c000020","key":{"customer_id":"C000020"},"batch":1,"column":"country_code","before":"SE","after":"SE "}

@@ -63,7 +63,7 @@
   },
   "dataset": {
     "name": "shop",
-    "generator_version": 1,
+    "generator_version": 2,
     "as_of": "2026-01-08T00:00:00Z",
     "batches": 3,
     "batch_interval": "1d",
@@ -77,8 +77,8 @@
         "rows_final": 50
       },
       "order_events": {
-        "rows_baseline": 144,
-        "rows_final": 144
+        "rows_baseline": 159,
+        "rows_final": 159
       }
     }
   },
@@ -153,53 +153,53 @@
   "files": [
     {
       "path": "chaos-ledger.jsonl",
-      "sha256": "6828ade5b0344f815b039359d0e939193a68e9b04736eb60a0afbdcd27fd0ca7",
+      "sha256": "f2cea7f7940bc62c411fdfab9dfccfc5490edaec4811d3b325f509b94bf4c586",
       "rows": 8
     },
     {
       "path": "data/customers/batch_0000.csv",
-      "sha256": "0789e9b0c7b278b88836ff9d9cbc3c6e52442cd8f0c236a78dda476cea007785",
-      "rows": 4
+      "sha256": "f1de2cf44e644c92a7614cf8ab76124e97fd131be9c7e66567342af1b4b062d8",
+      "rows": 7
     },
     {
       "path": "data/customers/batch_0001.csv",
-      "sha256": "46945ff69c2aba472112c1b8706e50c46b344adc4c2124a97c51fdf3667126de",
-      "rows": 11
+      "sha256": "68cd27e5da79bd4aadaa65cab88cd5a3c97d3b568aaa044a20d0567c8c2d96af",
+      "rows": 10
     },
     {
       "path": "data/customers/batch_0002.csv",
-      "sha256": "8a4622685f4dd90036070cbe060dde9e4217d30e628b6e6252d61e5e96382968",
-      "rows": 5
-    },
-    {
-      "path": "data/order_events/batch_0000.csv",
-      "sha256": "b1a65a0bdcd36a79c5467f1cdc84289ec7152d40354eef20600ef98a22fce6e8",
-      "rows": 5
-    },
-    {
-      "path": "data/order_events/batch_0001.csv",
-      "sha256": "effb3a019a18db3cdd1b63992dbcc01b82fa3edb5f5fa4f8509c2cc8585602ef",
-      "rows": 37
-    },
-    {
-      "path": "data/order_events/batch_0002.csv",
-      "sha256": "8e3422cbedc3e52a8028888181ddb7e0d7b300f47ad2681e4ad3583ff0e3d4c5",
-      "rows": 102
-    },
-    {
-      "path": "data/orders/batch_0000.csv",
-      "sha256": "373a4263dbfc04edb13ccfd3a2236aaf8a4296fe76f1b2a744aab6e15f52bb61",
+      "sha256": "89b7d88d5d1031da8a09650aad10a1fb1528201b43ec6bb2e36a06481bd3fd79",
       "rows": 3
     },
     {
+      "path": "data/order_events/batch_0000.csv",
+      "sha256": "42d26c51411234f933b1bc8df1f1a5e1c5227c8461ba984bddd242fa78557c5f",
+      "rows": 46
+    },
+    {
+      "path": "data/order_events/batch_0001.csv",
+      "sha256": "376a5f773d2112f19d88a12b1505f7f2013b9cc1186aa8c27099259d7d08ccbb",
+      "rows": 57
+    },
+    {
+      "path": "data/order_events/batch_0002.csv",
+      "sha256": "da6d8458c93b7a4f0ae7cb2144d7de9bb4bd572732231b27d0b6fa5a3b9e4102",
+      "rows": 56
+    },
+    {
+      "path": "data/orders/batch_0000.csv",
+      "sha256": "3a9b3adf90d551d42535e6e0dd4a25b17b2afe001e8a93084408139a482257b3",
+      "rows": 20
+    },
+    {
       "path": "data/orders/batch_0001.csv",
-      "sha256": "b2d1c7fe6501272c5523c76ee1efa2a1406452961bc1759c3abe8b5b821a4171",
-      "rows": 13
+      "sha256": "b674c4567b5c066c420a17553e42733d498db281d1d10296a880f60341be3e59",
+      "rows": 14
     },
     {
       "path": "data/orders/batch_0002.csv",
-      "sha256": "4e6189ca0f885f37448ecfca04c844ed4ec39a7baac1bee45df7233edbe52998",
-      "rows": 34
+      "sha256": "154cbf8b9e8747737622fa8891caf9882941619643174690fe48baa17f34b4ef",
+      "rows": 16
     },
     {
       "path": "schemas/customers/batch_0000.json",
@@ -238,6 +238,6 @@
       "sha256": "10f644789d2987342e0bbd56066af51363c34a5c5bf812adea97250c48b8e10c"
     }
   ],
-  "content_sha256": "4560dc08ee60d31ec9ec5bc3d932afa8175fe345b883ea7ff18bfa04fb75e2a9",
+  "content_sha256": "41c376e277481cec16c2e549b779be05c1656ea8ec60ef5e025b5ab7ab5ce55a",
   "warnings": []
 }

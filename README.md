@@ -27,13 +27,13 @@ $ datachaos generate --out shop --seed 1 --batches 3
 wrote shop (run 641969d1c928467c)
   customers: 100 rows
   orders: 1000 rows
-  order_events: 2665 rows
+  order_events: 3216 rows
 ```
 
 ```text
 order_id,customer_id,order_timestamp,updated_at,status,amount,currency,source_system,ingested_at
-O000322,C000006,2025-12-29T01:54:51Z,2025-12-29T01:54:51Z,created,6730.62,SEK,webshop,2025-12-29T01:58:28Z
-O000164,C000001,2025-12-29T03:14:28Z,2025-12-29T03:14:28Z,created,25552.01,NOK,pos,2025-12-29T03:33:11Z
+O000150,C000001,2025-12-29T00:01:33Z,2025-12-29T00:01:33Z,created,34752.88,NOK,pos,2025-12-29T00:02:04Z
+O000975,C000001,2025-12-29T00:00:23Z,2025-12-29T00:00:23Z,created,32987.31,NOK,webshop,2025-12-29T00:15:31Z
 ```
 
 The output directory must be missing or empty. Missing parent directories are created.
@@ -109,7 +109,7 @@ $ datachaos run --config chaos.yml --out chaos
 wrote chaos (run e31a5622bdf493fe)
   customers: 100 rows
   orders: 1020 rows
-  order_events: 2936 rows
+  order_events: 3300 rows
   scenario 0: duplicate-business-key on orders, 20 ledger lines
   scenario 1: null-critical-column on orders, 10 ledger lines
   scenario 2: invalid-enum on orders, 10 ledger lines
@@ -125,8 +125,8 @@ datachaos run --out chaos --scenario invalid-enum --table orders --param column=
 `chaos-ledger.jsonl` holds one line per change:
 
 ```text
-{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000001","source_rid":"o000181","key":{"order_id":"O000181"},"batch":5,"column":null,"before":null,"after":null}
-{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000002","source_rid":"o000190","key":{"order_id":"O000190"},"batch":2,"column":null,"before":null,"after":null}
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000001","source_rid":"o000181","key":{"order_id":"O000181"},"batch":3,"column":null,"before":null,"after":null}
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000002","source_rid":"o000190","key":{"order_id":"O000190"},"batch":1,"column":null,"before":null,"after":null}
 ```
 
 - By default a scenario does not select a row whose key an earlier scenario has touched.

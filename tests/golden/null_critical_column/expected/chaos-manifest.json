@@ -50,7 +50,7 @@
   },
   "dataset": {
     "name": "shop",
-    "generator_version": 1,
+    "generator_version": 2,
     "as_of": "2026-01-08T00:00:00Z",
     "batches": 3,
     "batch_interval": "1d",
@@ -64,8 +64,8 @@
         "rows_final": 50
       },
       "order_events": {
-        "rows_baseline": 135,
-        "rows_final": 135
+        "rows_baseline": 152,
+        "rows_final": 152
       }
     }
   },
@@ -116,53 +116,53 @@
   "files": [
     {
       "path": "chaos-ledger.jsonl",
-      "sha256": "9ac10ae81d52b87f3742ec6050cb47264dc4c27ab7730b638e2b0e40f2504f0d",
+      "sha256": "10722427ae52d87391f031f5ab5d4731c453d91edb81fdb1bf2d6e416e686fb8",
       "rows": 7
     },
     {
       "path": "data/customers/batch_0000.csv",
-      "sha256": "593047602dcf334f03c5fcdab27801b718c0b8054ca76357d92bff829be10643",
-      "rows": 3
+      "sha256": "99e8ff36b730d59552ccf07a4ee1de1efe0e61427cdb785def58ee345f1de420",
+      "rows": 4
     },
     {
       "path": "data/customers/batch_0001.csv",
-      "sha256": "56e20896fb1f564304daa13d1a15ef0406cd741ca69ce5c3412bc92329581caf",
-      "rows": 9
+      "sha256": "a63573a70a338ec1aee3ffc4157a61449077994c15d508e6a338b81df8a15d89",
+      "rows": 7
     },
     {
       "path": "data/customers/batch_0002.csv",
-      "sha256": "e809ba3abef124be8217e359af25d0da1c8d4871b468aa7bcc784457b7cbda99",
-      "rows": 8
+      "sha256": "e896acf5e0301d8857655f48fb2e655c231af7942efe4ee4d35cadcbdabec72c",
+      "rows": 9
     },
     {
       "path": "data/order_events/batch_0000.csv",
-      "sha256": "2cf4c10c666dfb71c96073ce09d0dacd2981163e6d83753f75812dd3fa46ccf9",
-      "rows": 13
+      "sha256": "ae5b1307b03acf94114a0a1f4d6eda204394352fef2c89d6ee1ea5c839da5ed6",
+      "rows": 52
     },
     {
       "path": "data/order_events/batch_0001.csv",
-      "sha256": "06e8a4bb0d1abbcbbe95c7f2cf0a7baac350da9f5e0dcf527e5855f4339da69e",
-      "rows": 30
+      "sha256": "4b0ad1cadce5b48205752a9ecdd609018189ee779c75cfe1b9a977e21ffe8b2e",
+      "rows": 51
     },
     {
       "path": "data/order_events/batch_0002.csv",
-      "sha256": "f5e010a2b9ad14d5af3b903fd139e418b3e0f4068404945e72161bfeffcb859d",
-      "rows": 92
+      "sha256": "fc788616293ea9165653eda2db2e9ea65d362e55b99de916d41108c812ca97b7",
+      "rows": 49
     },
     {
       "path": "data/orders/batch_0000.csv",
-      "sha256": "a313ecc27f2a9cc697537a7d47e9e1e9b3a3247c193fd93193322e9d674e7cf8",
-      "rows": 5
+      "sha256": "b5b9a5d2c1de2684206eacdc1be237eb0429fc591f1d1e1ced977ab37c76d37e",
+      "rows": 17
     },
     {
       "path": "data/orders/batch_0001.csv",
-      "sha256": "42eaf7b7d05fbddf0489d676868f2bfacc093bc3311fec3c6866fbbfcb63d530",
-      "rows": 10
+      "sha256": "69f96e277bd601fbb7e110ac8f76d6987f6e8dde3385235c30b0847f0e6496a3",
+      "rows": 15
     },
     {
       "path": "data/orders/batch_0002.csv",
-      "sha256": "7583c2dce5f14a267da6c6a953250c65517476ee3a1e024acf7a274c74e013b1",
-      "rows": 35
+      "sha256": "7168b8ede28d46ef6251742f04e866c3f0d730cc47410a1c73ce2a24009f4961",
+      "rows": 18
     },
     {
       "path": "schemas/customers/batch_0000.json",
@@ -201,7 +201,7 @@
       "sha256": "10f644789d2987342e0bbd56066af51363c34a5c5bf812adea97250c48b8e10c"
     }
   ],
-  "content_sha256": "6b2fc704d174d7908c470dabe3305dc988eded8cfc92539ee970649360c1d79a",
+  "content_sha256": "35aee72a87e65ec6b5415d887676f1191e043889743d4a1d57475c14377d6b13",
   "warnings": [
     "scenarios[0]: orders.customer_id is not nullable in the schema, but 5 rows now hold NULL",
     "scenarios[1]: customers.customer_id is not nullable in the schema, but 2 rows now hold NULL"

@@ -202,8 +202,8 @@ Ett datasett med tre tabeller som henger sammen, ikke separate `--dataset orders
 | Kolonne | Type | Rolle | Merknad |
 |---|---|---|---|
 | order_id | STRING | KEY | `O000001` … |
-| customer_id | STRING | FOREIGN_KEY → customers.customer_id | kunde opprettet før ordren |
-| order_timestamp | TIMESTAMP | EVENT_TIME | |
+| customer_id | STRING | FOREIGN_KEY → customers.customer_id | velges blant kunder med `created_at ≤ order_timestamp` |
+| order_timestamp | TIMESTAMP | EVENT_TIME | jevnt fordelt over vinduet |
 | updated_at | TIMESTAMP | UPDATED_AT | = order_timestamp i baseline |
 | status | STRING | ENUM | alltid `created` i baseline (tilstanden ved opprettelse); øvrige verdier: paid, shipped, delivered, cancelled |
 | amount | DECIMAL(18,2) | ATTRIBUTE | genereres som heltall øre/cent |
@@ -242,6 +242,8 @@ Generatorkrav:
   - `created → paid → shipped → delivered → cancelled`
 - Events som ville fått `ingested_at` på eller etter `as_of` kuttes bort, sammen med resten av
   forløpet. Antall events per ordre er derfor 1–5, og første event er alltid med.
+- Første kunde (`C000001`) opprettes ved vinduets start, så det alltid finnes en kunde å velge.
+  Sent opprettede kunder kan stå uten ordrer.
 - En forelder lander aldri etter barnet: `ingested_at` for kunde ≤ ordre ≤ ordrens events.
 - Avstanden mellom events i en ordre er 31 min–6 t, så `ingested_at` har samme rekkefølge som
   `event_time` i baseline. `out-of-order-events` har dermed en ren kontrollgruppe.

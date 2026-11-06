@@ -7,6 +7,7 @@ ingested_at, so orders are their state at creation and later statuses exist only
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from dataclasses import dataclass
 
 from datachaos.model.dataset import Dataset
@@ -15,7 +16,7 @@ from datachaos.model.table import Row, Table, sorted_rows
 from datachaos.rng import Rng, derive_seed
 from datachaos.timeutil import format_timestamp, parse_duration, parse_timestamp, window_start
 
-GENERATOR_VERSION = 1
+GENERATOR_VERSION = 2
 
 _INGEST_DELAY_MAX = 1800
 # Longer than the largest ingest delay, so ingested_at follows event_time within an order.
@@ -122,7 +123,9 @@ def build_shop(
     customer_rows, parents = _customers(
         Rng(derive_seed(seed, "dataset:customers")), customers, start, latest
     )
-    order_rows, placed = _orders(Rng(derive_seed(seed, "dataset:orders")), orders, parents, latest)
+    order_rows, placed = _orders(
+        Rng(derive_seed(seed, "dataset:orders")), orders, parents, start, latest
+    )
     event_rows = _events(Rng(derive_seed(seed, "dataset:order_events")), placed, as_of_seconds)
 
     return Dataset(
@@ -143,7 +146,8 @@ def _customers(rng: Rng, count: int, start: int, latest: int) -> tuple[list[Row]
     rows = []
     customers = []
     for number in range(1, count + 1):
-        created_at = rng.between(start, latest)
+        # The first customer exists from the start, so every order has a customer to choose.
+        created_at = start if number == 1 else rng.between(start, latest)
         ingested_at = created_at + rng.between(0, _INGEST_DELAY_MAX)
         country = rng.weighted_choice(_COUNTRIES, _COUNTRY_WEIGHTS)
         customer = _Customer(f"C{number:06d}", created_at, ingested_at, country)
@@ -166,13 +170,15 @@ def _customers(rng: Rng, count: int, start: int, latest: int) -> tuple[list[Row]
 
 
 def _orders(
-    rng: Rng, count: int, customers: list[_Customer], latest: int
+    rng: Rng, count: int, customers: list[_Customer], start: int, latest: int
 ) -> tuple[list[Row], list[_Order]]:
     rows = []
     orders = []
+    by_age = sorted(customers, key=lambda customer: (customer.created_at, customer.customer_id))
+    created = [customer.created_at for customer in by_age]
     for number in range(1, count + 1):
-        customer = rng.choice(customers)
-        order_timestamp = rng.between(customer.created_at, latest)
+        order_timestamp = rng.between(start, latest)
+        customer = by_age[rng.below(bisect_right(created, order_timestamp))]
         # Within the usual delay, but never ahead of the customer it refers to.
         ingested_at = rng.between(
             max(order_timestamp, customer.ingested_at), order_timestamp + _INGEST_DELAY_MAX
