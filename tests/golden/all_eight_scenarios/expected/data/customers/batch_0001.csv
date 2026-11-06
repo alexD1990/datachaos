@@ -1,0 +1,4 @@
+customer_id,created_at,updated_at,country_code,customer_segment,is_active,ingested_at,_chaos_rid
+C000015,2026-01-05T01:40:02Z,2026-01-05T01:40:02Z,DK,consumer,true,2026-01-05T02:08:14Z,c000015
+C000019,2026-01-05T05:47:40Z,2026-01-05T05:47:40Z,NO,consumer,false,2026-01-05T06:15:06Z,c000019
+C000020,2026-01-05T20:46:04Z,2026-01-05T20:46:04Z,NO,consumer,true,2026-01-05T20:51:22Z,c000020

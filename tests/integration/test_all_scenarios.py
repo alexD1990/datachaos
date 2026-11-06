@@ -1,4 +1,4 @@
-"""Acceptance for phase 3: all seven scenarios together, checked against the files on disk."""
+"""Acceptance for phases 3 and 4: all scenarios together, checked against the files on disk."""
 
 from __future__ import annotations
 
@@ -18,7 +18,11 @@ from datachaos.config import load_config, parse_config
 from datachaos.io.reader import read_csv, read_json, read_schema
 
 REPO = Path(__file__).resolve().parents[2]
-CONFIG = REPO / "tests" / "golden" / "all_seven_scenarios" / "chaos.yml"
+GOLDEN = REPO / "tests" / "golden"
+CONFIGS = {
+    "seven": GOLDEN / "all_seven_scenarios" / "chaos.yml",
+    "eight": GOLDEN / "all_eight_scenarios" / "chaos.yml",
+}
 RID = "_chaos_rid"
 
 
@@ -30,10 +34,10 @@ def _tree(root: Path) -> dict[str, bytes]:
     }
 
 
-@pytest.fixture(scope="module")
-def out(tmp_path_factory: pytest.TempPathFactory) -> Path:
+@pytest.fixture(scope="module", params=sorted(CONFIGS))
+def out(request: pytest.FixtureRequest, tmp_path_factory: pytest.TempPathFactory) -> Path:
     path = tmp_path_factory.mktemp("run") / "out"
-    engine.run(load_config(CONFIG), path)
+    engine.run(load_config(CONFIGS[request.param]), path)
     return path
 
 
@@ -52,11 +56,11 @@ def _rows(out: Path, table: str) -> dict[str, tuple[int, dict[str, Any]]]:
     return rows
 
 
-def test_all_seven_ran_and_the_manifest_validates(out: Path) -> None:
+def test_all_ran_and_the_manifest_validates(out: Path) -> None:
     manifest = read_json(out / "chaos-manifest.json")
     schema = read_json(REPO / "schema" / "chaos-manifest-1.0.schema.json")
     jsonschema.Draft202012Validator(schema).validate(manifest)
-    assert [scenario["name"] for scenario in manifest["scenarios"]] == [
+    assert {scenario["name"] for scenario in manifest["scenarios"]} >= {
         "duplicate-business-key",
         "null-critical-column",
         "invalid-enum",
@@ -64,7 +68,7 @@ def test_all_seven_ran_and_the_manifest_validates(out: Path) -> None:
         "late-arriving-data",
         "out-of-order-events",
         "historical-update",
-    ]
+    }
     assert all(scenario["ledger_entries"] > 0 for scenario in manifest["scenarios"])
 
 
@@ -73,6 +77,8 @@ def test_every_ledger_line_is_visible_in_the_files(out: Path) -> None:
     actions = set()
     for entry in _ledger(out):
         actions.add(entry["action"])
+        if entry["action"] == "schema_change":
+            continue
         table = rows[entry["table"]]
         if entry["action"] == "delete_row":
             assert entry["rid"] not in table
@@ -84,7 +90,32 @@ def test_every_ledger_line_is_visible_in_the_files(out: Path) -> None:
         elif entry["action"] == "move_batch":
             assert batch == entry["after"], entry
             assert entry["before"] != entry["after"]
-    assert actions == {"insert_row", "set_value", "delete_row", "orphan_row", "move_batch"}
+    assert actions - {"schema_change"} == {
+        "insert_row",
+        "set_value",
+        "delete_row",
+        "orphan_row",
+        "move_batch",
+    }
+
+
+def test_every_row_on_disk_has_exactly_the_columns_of_its_batch(out: Path) -> None:
+    for table in ("customers", "orders", "order_events"):
+        for path in sorted((out / "data" / table).glob("batch_*.csv")):
+            schema = read_schema(out / "schemas" / table / f"{path.stem}.json")
+            names = [column.name for column in schema.columns]
+            for row in read_csv(path, schema):
+                assert list(row) == names
+
+
+def test_a_schema_change_shows_in_the_schema_files(out: Path) -> None:
+    changes = [entry for entry in _ledger(out) if entry["action"] == "schema_change"]
+    for entry in changes:
+        for path in sorted((out / "schemas" / entry["table"]).glob("batch_*.json")):
+            batch = int(path.stem.split("_")[1])
+            names = [column.name for column in read_schema(path).columns]
+            assert (entry["after"] in names) == (batch >= entry["batch"])
+            assert (entry["before"] in names) == (batch < entry["batch"])
 
 
 def test_orphans_have_no_parent_on_disk(out: Path) -> None:
@@ -99,6 +130,8 @@ def test_orphans_have_no_parent_on_disk(out: Path) -> None:
 def test_no_two_scenarios_touch_the_same_key_or_group(out: Path) -> None:
     owners: dict[tuple[str, str], set[int]] = defaultdict(set)
     for entry in _ledger(out):
+        if entry["action"] == "schema_change":
+            continue
         for value in entry["key"].values():
             owners[(entry["table"], value)].add(entry["scenario_index"])
     assert all(len(scenarios) == 1 for scenarios in owners.values())
@@ -128,15 +161,19 @@ def test_out_of_order_groups_are_out_of_order_on_disk(out: Path) -> None:
         assert rows[-2]["ingested_at"] > rows[-1]["ingested_at"]
 
 
-def test_the_config_in_the_manifest_reproduces_the_run_byte_for_byte(tmp_path: Path) -> None:
+@pytest.mark.parametrize("name", sorted(CONFIGS))
+def test_the_config_in_the_manifest_reproduces_the_run_byte_for_byte(
+    tmp_path: Path, name: str
+) -> None:
     moment = "2000-01-01T00:00:00Z"
-    engine.run(load_config(CONFIG), tmp_path / "a", created_at=moment)
+    engine.run(load_config(CONFIGS[name]), tmp_path / "a", created_at=moment)
     resolved = read_json(tmp_path / "a" / "chaos-manifest.json")["run"]["config"]
     engine.run(parse_config(resolved), tmp_path / "b", created_at=moment)
     assert _tree(tmp_path / "a") == _tree(tmp_path / "b")
 
 
-def test_two_processes_give_identical_files(tmp_path: Path) -> None:
+@pytest.mark.parametrize("config_name", sorted(CONFIGS))
+def test_two_processes_give_identical_files(tmp_path: Path, config_name: str) -> None:
     for name, hash_seed in (("a", "1"), ("b", "2")):
         subprocess.run(
             [
@@ -145,7 +182,7 @@ def test_two_processes_give_identical_files(tmp_path: Path) -> None:
                 "datachaos",
                 "run",
                 "--config",
-                str(CONFIG),
+                str(CONFIGS[config_name]),
                 "--out",
                 str(tmp_path / name),
             ],

@@ -25,7 +25,8 @@ All notable changes to this project are documented in this file. The format is b
 - Running a scenario: every scenario is validated before any runs, each against the schema state
   the earlier ones leave behind, and a scenario's invariant is checked right after it runs. All
   changes go to `chaos-ledger.jsonl`. A scenario does not select rows whose key or group an earlier
-  one has touched, unless `allow_overlap` is set.
+  one has touched, unless `allow_overlap` is set. `schema-drift` cannot be combined with another
+  scenario on the same column.
 - Scenarios `duplicate-business-key`, `null-critical-column`, `invalid-enum`,
   `orphaned-foreign-key`, `late-arriving-data`, `out-of-order-events`, `historical-update` and
   `schema-drift`. The manifest warns when NULL is written to a column the schema says is not nullable.
