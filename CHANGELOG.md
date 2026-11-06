@@ -47,8 +47,12 @@ All notable changes to this project are documented in this file. The format is b
 - Scenarios `duplicate-business-key`, `null-critical-column`, `invalid-enum`,
   `orphaned-foreign-key`, `late-arriving-data`, `out-of-order-events`, `historical-update` and
   `schema-drift`. The manifest warns when NULL is written to a column the schema says is not nullable.
+- `examples/dbt_shop`: a dbt-duckdb project with vulnerable and robust incremental models, and
+  `run_demo.py`, which runs the whole loop for a baseline and every scenario. It needs
+  `pip install -e ".[dev,dbt]"`.
 
 ### Changed
 - Orders are spread evenly over the time window, instead of piling up towards the end. Generator
   version 2 therefore gives other data than version 1. Late customers can be without orders.
-- CI also runs on macOS and Windows with Python 3.12.
+- CI also runs on macOS and Windows with Python 3.12, and runs the dbt demo in a job of its own on
+  Ubuntu with Python 3.12.

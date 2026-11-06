@@ -680,7 +680,8 @@ datachaos inject --input DIR --out DIR --scenario NAME --table T [--param key=va
 datachaos validate DIR [--reproduce] [--output text|json]
 datachaos report DIR [--output text|json]
 datachaos land DIR --upto-batch K --to LANDING_DIR [--output text|json]
-datachaos check-dbt --run DIR --run-results PATH --config chaos.yml [--output text|json]
+datachaos check-dbt --run DIR --run-results PATH [--run-results PATH ...] --config chaos.yml
+                    [--output text|json]
 ```
 
 - `--out` er alltid påkrevd, også med `--config`. Stien er ikke en del av configen, så `run_id`
@@ -755,18 +756,23 @@ expectations:
 
 ### 11.2 `check-dbt`
 
-Leser `target/run_results.json` fra en dbt-kjøring mot dataene og sammenligner med
+Leser `run_results.json` fra én eller flere dbt-kjøringer mot dataene og sammenligner med
 `expectations`:
 
-- Hver `failing_tests`-glob matches mot `unique_id` med `fnmatch`. En glob uten treff i
-  `run_results` er en **konfigfeil** (exit 2), ikke en stille «ikke oppdaget».
-- Forventet: minst én node per glob har `status` `fail` eller `error`. Globben kan treffe
-  tester eller modeller; `schema-drift` vises ofte som en modell med `error`
-  (f.eks. `model.dbt_shop.stg_orders`), ikke som en feilende test.
-- I tillegg rapporteres alle *andre* feilende tester som «uventet».
+- `--run-results` gis én gang per dbt-kjøring, og resultatene slås sammen: en node har feilet hvis den
+  har `fail` eller `error` i minst én fil. Det trengs fordi en modellfeil fra `dbt run` kan følges av
+  tester som passerer mot den gamle tabellen.
+- Hver `failing_tests`-glob matches mot `unique_id` med `fnmatch`. En glob uten treff i noen fil er
+  en **konfigfeil** (exit 2), ikke en stille «ikke oppdaget».
+- Forventet: minst én node per glob har feilet. Globben kan treffe tester eller modeller;
+  `schema-drift` vises ofte som en modell med `error` (f.eks. `model.dbt_shop.stg_orders`), ikke som
+  en feilende test. `skipped` regnes ikke som feilet.
+- I tillegg rapporteres alle *andre* feilede noder som «uventet». Det endrer ikke exit code, men
+  demoen krever at det ikke finnes noen.
+- `--config` må høre til `--run` (samme `run_id`), ellers exit 2.
 - Output: matrise scenario × forventet test × faktisk status. Exit 1 hvis en forventning
   ikke er oppfylt.
-- `check-dbt` med en kjøring uten scenarioer (baseline) forventer at alle tester passerer.
+- `check-dbt` med en kjøring uten scenarioer (baseline) forventer at alle noder passerer.
 - Formatet til `run_results.json` verifiseres mot ekte dbt i integrasjonstestene; ikke anta
   felter som ikke finnes der.
 
@@ -872,31 +878,41 @@ tester for å få grønt.
 `examples/dbt_shop/` (dbt-duckdb, `profiles.yml` i prosjektmappa med relativ sti, som i
 DAGtracers `testproject/`):
 
-- Sources leser landing-mappa med DuckDB `read_csv('<landing>/<table>/*.csv',
-  union_by_name=true, filename=true)` via en liten makro eller `external`-kilde. Verifiser
-  hvilken mekanisme dbt-duckdb-versjonen faktisk støtter før du velger.
+- Kilder leser landing-mappa med `meta.external_location` og DuckDB `read_csv('<landing>/<table>/*.csv',
+  all_varchar=true, union_by_name=true, filename=true)`. Staging caster til riktige typer og
+  materialiseres som tabeller, slik at `change_type` gir en cast-feil i staging, som i en ekte pipeline.
 - Modeller: `stg_customers`, `stg_orders` (dedup på siste `updated_at`), `stg_order_events`
-  (dedup på `event_id`), `fct_orders` (inner join mot kunder), og sårbar/robust-par for de
-  to tidsscenarioene:
-  - `daily_orders_event_watermark` (inkrementell, vannmerke på `order_timestamp`, sårbar)
-    og `daily_orders_ingest_watermark` (vannmerke på `ingested_at`, robust);
+  (dedup på `event_id`), `fct_orders` (inner join mot kunder), `fct_orders_incremental` og
+  sårbar/robust-par for de to tidsscenarioene:
+  - `daily_orders_event_watermark` (sårbar: beregner bare dager fra vannmerket på `order_timestamp`,
+    med 30 min tilbakeblikk som dekker normal forsinkelse) og `daily_orders_ingest_watermark` (robust:
+    beregner hver dag som er berørt av rader innlest etter vannmerket på `ingested_at`). Begge
+    aggregerer antall ordrer, `sum(amount)` og antall per status per dag;
   - `order_status_by_ingestion` (siste event etter `ingested_at`, sårbar) og
     `order_status_by_event_time` (siste event etter `event_time`, robust).
+- `fct_orders_incremental` viser skaden av en sen forelder. `relationships` kjører etter siste batch og
+  ser bare sluttilstanden, der kunden er kommet. Men en ordre som landet før kunden falt ut av inner
+  join-en, og vannmerket gjør at den aldri ses igjen, så den singular testen mot `fct_orders` feiler.
 - Tester:
-  - Generiske `not_null`/`relationships`/`accepted_values` på kilder og staging, `unique`
-    på staging-nøkler.
+  - Generiske `not_null`/`relationships`/`accepted_values` og `unique` på staging. Kildene er uten
+    typer, og samme feil to steder ville bare gitt dobbelt så mange forventninger.
   - Rålaget har to rader per nøkkel ved `historical-update` (legitimt), så duplikater fanges
     der med singular test `assert_raw_orders_unique_per_version` (unik på
     `order_id, updated_at`). Uten dbt-pakker; ikke `dbt_utils`.
   - Singular test per inkrementell variant som sammenligner med en full beregning, og per
     status-variant som sammenligner med fasit utledet fra `event_time`. De sårbare skal feile
     under sine scenarioer, de robuste ikke.
-- `examples/dbt_shop/run_demo.py`: for hvert scenario (og baseline): `datachaos run`,
-  for k = 0..N: `datachaos land --upto-batch k` + `dbt build`, deretter `check-dbt`.
-  Skriver en samlet tabell.
+- `examples/dbt_shop/run_demo.py`: for hver config: `datachaos run`, for k = 0..N: `datachaos land
+  --upto-batch k` + `dbt run`, deretter `dbt test` én gang, `datachaos validate` og `check-dbt` med
+  `run_results.json` fra alle dbt-kjøringene. Ikke `dbt build` per batch: det hopper over modeller
+  nedstrøms en feilende test, og da får de inkrementelle modellene feil tilstand. Ikke
+  `--emit-row-ids`; advarsler om unverifiable er greit her. Skriver en samlet tabell.
+- `add_column` og `change_type: string` feiler ikke i denne pipelinen, siden staging velger faste
+  kolonner og teksten er uendret, så de er ikke med i demoen.
 - `dbtcheck.py` og `check-dbt`-kommandoen.
+- CI: egen jobb på Ubuntu med Python 3.12 og `pip install -e ".[dev,dbt]"`. Matrisen er uendret.
 - **Akseptanse:** `python examples/dbt_shop/run_demo.py` kjører fra rent miljø med
-  `pip install -e ".[dev]"`, baseline er grønn, og hvert scenario fanges av forventet test.
+  `pip install -e ".[dev,dbt]"`, baseline er grønn, og hvert scenario fanges av forventet test.
   De sårbare modellene fanges av `late-arriving-data` og `out-of-order-events`; de robuste
   gjør det ikke.
 
