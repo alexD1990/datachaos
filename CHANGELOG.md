@@ -26,7 +26,7 @@ All notable changes to this project are documented in this file. The format is b
   the earlier ones leave behind, and a scenario's invariant is checked right after it runs. All
   changes go to `chaos-ledger.jsonl`.
 - Scenarios `duplicate-business-key`, `null-critical-column`, `invalid-enum`,
-  `orphaned-foreign-key`, `late-arriving-data` and `out-of-order-events`. The manifest warns when NULL is written to a column the schema says is not nullable.
+  `orphaned-foreign-key`, `late-arriving-data`, `out-of-order-events` and `historical-update`. The manifest warns when NULL is written to a column the schema says is not nullable.
 
 ### Changed
 - Orders are spread evenly over the time window, instead of piling up towards the end. Generator

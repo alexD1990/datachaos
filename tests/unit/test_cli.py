@@ -344,6 +344,7 @@ def test_list_scenarios_as_text(capsys: pytest.CaptureFixture[str]) -> None:
     lines = capsys.readouterr().out.splitlines()
     assert [line.split()[0] for line in lines] == [
         "duplicate-business-key",
+        "historical-update",
         "invalid-enum",
         "late-arriving-data",
         "null-critical-column",
@@ -361,6 +362,7 @@ def test_list_scenarios_as_json_is_only_json(capsys: pytest.CaptureFixture[str])
     assert document["tool_version"] == __version__
     assert [item["name"] for item in document["scenarios"]] == [
         "duplicate-business-key",
+        "historical-update",
         "invalid-enum",
         "late-arriving-data",
         "null-critical-column",

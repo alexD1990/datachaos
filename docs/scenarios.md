@@ -20,6 +20,24 @@ Adds a second row with the same business key.
 | `mutation_mode` | str | no | `exact_copy` | exact_copy, or mutate_non_key to change one other column on the copy. |
 | `same_batch` | bool | no | `true` | Keep the copy in the batch of the original, or else in a later one. |
 
+## `historical-update`
+
+Adds a new version of old rows in a later batch, with a new updated_at.
+
+- **Version:** 1
+- **Detects:** Incremental models that only see new keys, or that filter on event time instead of updated_at.
+- **Typical dbt test:** `singular test comparing the incremental model with a full refresh`
+- **Applies to:** entity tables
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `rate` | float or int | no | `none` | Share of the candidate rows to select. Give exactly one of rate and count. |
+| `count` | int | no | `none` | Number of candidate rows to select. Give exactly one of rate and count. |
+| `allow_overlap` | bool | no | `false` | Also select rows whose key an earlier scenario has touched. |
+| `older_than` | str | yes |  | Candidates have an event time this long before as_of, such as 3d. |
+| `columns` | list | no | `['status', 'amount']` | The columns that change in the new version. They must be enum or attribute. |
+| `in_batch` | int | no | `none` | The batch of the new versions. Defaults to the last one. Candidates are in an earlier batch. |
+
 ## `invalid-enum`
 
 Replaces a category with a value outside the allowed values.
