@@ -92,6 +92,8 @@ src/datachaos/
     reader.py          # leser DataChaos-output tilbake (for validate/inject)
     output_dir.py      # trygg skriving: temp-mappe + atomisk rename
   validate.py          # sjekker filer mot manifest og ledger
+  report.py            # oppsummering per scenario fra manifest og ledger
+  inject.py            # legger et scenario til tidligere output ved å regenerere
   dbtcheck.py          # leser dbt run_results.json, sammenligner med forventninger
   land.py              # kopierer batch 0..k til en landing-mappe
 tests/
@@ -920,9 +922,12 @@ DAGtracers `testproject/`):
 
 - README: hva, hvorfor, 5-minutters quickstart, scenario-tabell, output-format, NULL-regel,
   determinisme-garanti og hva den ikke dekker, eksempel på hele løkken.
-- `.github/workflows/publish.yml` (kopier fra dataowl; trusted publishing).
-- Test i CI som bygger wheel og sdist og installerer wheel i rent venv, kjører
-  `datachaos generate` og `validate`.
+- `.github/workflows/publish.yml` (kopier fra dataowl; trusted publishing, environment `pypi`).
+- CI-jobb `wheel` med `.github/scripts/smoke-wheel.sh`: bygger sdist og wheel fra sdist, kjører
+  `twine check --strict`, installerer wheel i rent venv uten repoet på stien, og kjører `generate`,
+  `run` med et scenario og `validate --reproduce`.
+- En test kjører `datachaos`-kommandoene i README og krever nøyaktig den viste outputen.
+- Tag og release lages manuelt etter merge.
 - Sjekk at navnet `datachaos` er ledig på PyPI før første release. Hvis ikke: behold
   importnavn og CLI, velg et annet distribusjonsnavn.
 - **Akseptanse:** «Definition of Done» under.
