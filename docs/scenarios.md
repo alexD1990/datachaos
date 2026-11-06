@@ -88,3 +88,19 @@ Makes foreign keys point at a parent that does not exist.
 | `allow_overlap` | bool | no | `false` | Also select rows whose key an earlier scenario has touched. |
 | `column` | str | no | `none` | The foreign key column. Defaults to the first one in the table. |
 | `mode` | str | no | `nonexistent` | nonexistent points selected rows at an ID that does not exist. deleted_parent deletes selected parents, so all their children are orphaned. rate and count then select parents, among those with children. |
+
+## `out-of-order-events`
+
+Holds back the next to last event of a group, so that it lands after the last.
+
+- **Version:** 1
+- **Detects:** Latest-event-wins logic that sorts on ingested_at instead of event time, or that assumes events arrive in order.
+- **Typical dbt test:** `singular test that the current status comes from the latest event time`
+- **Applies to:** event_log tables
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `rate` | float or int | no | `none` | Share of the candidate rows to select. Give exactly one of rate and count. |
+| `count` | int | no | `none` | Number of candidate rows to select. Give exactly one of rate and count. |
+| `allow_overlap` | bool | no | `false` | Also select rows whose key an earlier scenario has touched. |
+| `group_by` | str | no | `none` | The column that defines a group. Defaults to the foreign key. rate and count select groups, among those with two events in order and room before as_of. |
