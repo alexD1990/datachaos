@@ -204,7 +204,7 @@ Ett datasett med tre tabeller som henger sammen, ikke separate `--dataset orders
 | customer_id | STRING | FOREIGN_KEY → customers.customer_id | kunde opprettet før ordren |
 | order_timestamp | TIMESTAMP | EVENT_TIME | |
 | updated_at | TIMESTAMP | UPDATED_AT | = order_timestamp i baseline |
-| status | STRING | ENUM | created, paid, shipped, delivered, cancelled |
+| status | STRING | ENUM | alltid `created` i baseline (tilstanden ved opprettelse); øvrige verdier: paid, shipped, delivered, cancelled |
 | amount | DECIMAL(18,2) | ATTRIBUTE | genereres som heltall øre/cent |
 | currency | STRING | ENUM | NOK, SEK, DKK, EUR |
 | source_system | STRING | ENUM | webshop, pos, b2b_api |
@@ -217,18 +217,35 @@ Ett datasett med tre tabeller som henger sammen, ikke separate `--dataset orders
 | event_id | STRING | KEY | `E000001` … |
 | order_id | STRING | FOREIGN_KEY → orders.order_id | |
 | event_type | STRING | ENUM | created, paid, shipped, delivered, cancelled |
-| event_time | TIMESTAMP | EVENT_TIME | strengt økende per ordre |
+| event_time | TIMESTAMP | EVENT_TIME | strengt økende per ordre; første event er `created` med `event_time = order_timestamp` |
 | ingested_at | TIMESTAMP | INGESTION_TIME | event_time + 0–30 min |
 
 Generatorkrav:
 
-- Størrelser i config: `customers`, `orders` (events følger av ordrene, 2–5 per ordre).
+- Størrelser i config: `customers`, `orders` (events følger av ordrene, 1–5 per ordre).
   CLI-standard: 100 kunder, 1 000 ordrer.
 - Baseline er **ren**: alle `unique`, `not_null`, `relationships` og `accepted_values` som
   er naturlige for schemaet holder. Dette testes (§ 13) og er kontrollgruppen i `check-dbt`.
 - Ingen tom streng genereres noensinne (tom felt = NULL i CSV, § 9.1).
 - Ingen ekte persondata, ingen nettverk, ingen systemtid. Alle tider avledes fra `as_of`.
 - Alle baseline-rader har `ingested_at < as_of` per konstruksjon.
+- **Ingen rad inneholder informasjon fra etter sin egen `ingested_at`** (testes). `orders` er
+  derfor tilstanden ved opprettelse: `status = created`, `updated_at = order_timestamp`. Senere
+  statusendringer finnes bare i `order_events`.
+- Forløp i `order_events`, der hver ordre trekker ett:
+  - `created → paid`
+  - `created → paid → shipped`
+  - `created → paid → shipped → delivered`
+  - `created → cancelled`
+  - `created → paid → cancelled`
+  - `created → paid → shipped → delivered → cancelled`
+- Events som ville fått `ingested_at` på eller etter `as_of` kuttes bort, sammen med resten av
+  forløpet. Antall events per ordre er derfor 1–5, og første event er alltid med.
+- En forelder lander aldri etter barnet: `ingested_at` for kunde ≤ ordre ≤ ordrens events.
+- Avstanden mellom events i en ordre er 31 min–6 t, så `ingested_at` har samme rekkefølge som
+  `event_time` i baseline. `out-of-order-events` har dermed en ren kontrollgruppe.
+- `batches × batch_interval` må være minst 3 t. `customers` og `orders` er maks 899 999, fordi
+  `C9xxxxx` og `O9xxxxx` er reservert for `orphaned-foreign-key`. `batches` er maks 9 999.
 
 ## 6. Determinisme
 

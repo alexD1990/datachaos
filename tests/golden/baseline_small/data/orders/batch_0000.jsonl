@@ -1,0 +1,2 @@
+{"order_id":"O000031","customer_id":"C000011","order_timestamp":"2026-01-05T16:32:17Z","updated_at":"2026-01-05T16:32:17Z","status":"created","amount":"46844.82","currency":"EUR","source_system":"webshop","ingested_at":"2026-01-05T16:39:19Z"}
+{"order_id":"O000025","customer_id":"C000019","order_timestamp":"2026-01-05T21:49:00Z","updated_at":"2026-01-05T21:49:00Z","status":"created","amount":"24885.87","currency":"DKK","source_system":"pos","ingested_at":"2026-01-05T22:06:33Z"}

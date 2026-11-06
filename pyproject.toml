@@ -41,13 +41,13 @@ dev = ["pytest>=8", "ruff==0.16.9", "mypy==2.3.1", "jsonschema>=4.18", "types-Py
 datachaos = "datachaos.cli:main"
 
 [tool.hatch.version]
-path = "src/datachaos/__init__.py"
+path = "src/datachaos/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/datachaos"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
+include = ["src", "tests", "schema", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
 exclude = [".github"]
 
 [tool.ruff]
