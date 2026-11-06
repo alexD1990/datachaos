@@ -15,7 +15,16 @@
         "run_id": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
         "created_at": {"$ref": "#/$defs/timestamp"},
         "seed": {"type": "integer", "minimum": 0},
-        "config": {"type": "object"}
+        "config": {"type": "object"},
+        "based_on": {
+          "type": "object",
+          "description": "The run that datachaos inject added a scenario to.",
+          "required": ["run_id", "content_sha256"],
+          "properties": {
+            "run_id": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+            "content_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        }
       }
     },
     "dataset": {

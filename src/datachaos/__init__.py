@@ -8,8 +8,9 @@ from datachaos import config as _config
 from datachaos import engine as _engine
 from datachaos._version import __version__
 from datachaos.model.manifest import Manifest
+from datachaos.validate import ValidationResult, validate_dir
 
-__all__ = ["Manifest", "__version__", "generate", "run"]
+__all__ = ["Manifest", "ValidationResult", "__version__", "generate", "run", "validate"]
 
 
 def generate(
@@ -49,3 +50,11 @@ def run(config: str | Path, out: str | Path, *, force: bool = False) -> Manifest
     Raises DataChaosError for an invalid config or when the output cannot be written.
     """
     return _engine.run(_config.load_config(Path(config)), Path(out), force=force)
+
+
+def validate(directory: str | Path, *, reproduce: bool = False) -> ValidationResult:
+    """Checks output. See the module `datachaos.validate` for what is checked when.
+
+    Raises DataChaosError if the directory is not DataChaos output.
+    """
+    return validate_dir(Path(directory), reproduce=reproduce)

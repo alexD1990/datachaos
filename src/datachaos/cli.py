@@ -13,7 +13,11 @@ from datachaos import config as _config
 from datachaos import engine
 from datachaos._version import __version__
 from datachaos.errors import DataChaosError
+from datachaos.inject import inject
+from datachaos.land import land
 from datachaos.model.manifest import Manifest
+from datachaos.report import build_report, render_report
+from datachaos.validate import validate_dir
 
 _FORMATS = {"csv": ("csv",), "jsonl": ("jsonl",), "both": ("csv", "jsonl")}
 _NOT_WITH_CONFIG = {
@@ -51,6 +55,10 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_run(commands)
     _add_list_scenarios(commands)
     _add_describe(commands)
+    _add_validate(commands)
+    _add_report(commands)
+    _add_inject(commands)
+    _add_land(commands)
     return parser
 
 
@@ -92,6 +100,7 @@ def _add_generate(commands: argparse._SubParsersAction[_Parser]) -> None:
         "--out", required=True, type=Path, help="output directory (missing or empty)"
     )
     _add_data_flags(parser)
+    _add_output(parser)
     _add_verbose(parser)
 
 
@@ -112,6 +121,7 @@ def _add_run(commands: argparse._SubParsersAction[_Parser]) -> None:
         "--param", action="append", default=[], metavar="KEY=VALUE", help="scenario parameter"
     )
     _add_data_flags(parser)
+    _add_output(parser)
     _add_verbose(parser)
 
 
@@ -124,6 +134,81 @@ def _add_list_scenarios(commands: argparse._SubParsersAction[_Parser]) -> None:
 def _add_describe(commands: argparse._SubParsersAction[_Parser]) -> None:
     parser = commands.add_parser("describe", help="describe one scenario and its parameters")
     parser.add_argument("scenario")
+    _add_output(parser)
+    _add_verbose(parser)
+
+
+def _add_validate(commands: argparse._SubParsersAction[_Parser]) -> None:
+    parser = commands.add_parser(
+        "validate",
+        help="check output against its manifest and ledger",
+        description=(
+            "Without flags, checks only what can be decided from the files on disk: hashes, "
+            "columns per batch schema, schema changes, and that every ledger line can be observed "
+            "in the final state. A line that cannot be proved wrong without row IDs counts as "
+            "unverifiable, with a warning. Scenario invariants are only checked with --reproduce."
+        ),
+    )
+    parser.add_argument("directory", type=Path)
+    parser.add_argument(
+        "--reproduce",
+        action="store_true",
+        help=(
+            "also run the config in the manifest again in a temp directory, which checks the "
+            "invariant of every scenario, and require identical files"
+        ),
+    )
+    _add_output(parser)
+    _add_verbose(parser)
+
+
+def _add_report(commands: argparse._SubParsersAction[_Parser]) -> None:
+    parser = commands.add_parser(
+        "report",
+        help="summarize a run per scenario, from its manifest and ledger",
+        description="Summarizes a run. Checks nothing; use validate for that.",
+    )
+    parser.add_argument("directory", type=Path)
+    _add_output(parser)
+    _add_verbose(parser)
+
+
+def _add_inject(commands: argparse._SubParsersAction[_Parser]) -> None:
+    parser = commands.add_parser(
+        "inject",
+        help="add a scenario to earlier output, in a new directory",
+        description=(
+            "Runs the config in the manifest of --input again, with the scenario at the end. "
+            "First checks that this gives the content of --input, which needs the same DataChaos "
+            "version. The new manifest records which run it builds on."
+        ),
+    )
+    parser.add_argument("--input", required=True, type=Path, help="earlier DataChaos output")
+    parser.add_argument(
+        "--out", required=True, type=Path, help="output directory (missing or empty)"
+    )
+    parser.add_argument("--scenario", required=True)
+    parser.add_argument("--table", required=True)
+    parser.add_argument(
+        "--param", action="append", default=[], metavar="KEY=VALUE", help="scenario parameter"
+    )
+    _add_output(parser)
+    _add_verbose(parser)
+
+
+def _add_land(commands: argparse._SubParsersAction[_Parser]) -> None:
+    parser = commands.add_parser(
+        "land",
+        help="copy batches up to one to a landing directory",
+        description=(
+            "Copies the data and schema files of batch 0 up to --upto-batch to "
+            "LANDING/<table>/ and LANDING/schemas/<table>/. Never deletes or overwrites: an equal "
+            "file is skipped, and a different one stops it before anything is copied."
+        ),
+    )
+    parser.add_argument("directory", type=Path)
+    parser.add_argument("--upto-batch", required=True, type=int)
+    parser.add_argument("--to", required=True, type=Path, metavar="LANDING_DIR")
     _add_output(parser)
     _add_verbose(parser)
 
@@ -152,8 +237,26 @@ def _config_from_flags(
     )
 
 
-def _report_run(out: Path, manifest: Manifest) -> None:
+def _report_run(out: Path, manifest: Manifest, output: str) -> None:
+    for warning in manifest.warnings:
+        print(f"datachaos: warning: {warning}", file=sys.stderr)
+    if output == "json":
+        _print_json(
+            {
+                "status": "ok",
+                "directory": str(out),
+                "run_id": manifest.run.run_id,
+                **({"based_on": dict(manifest.run.based_on)} if manifest.run.based_on else {}),
+                "content_sha256": manifest.content_sha256,
+                "tables": manifest.to_dict()["dataset"]["tables"],  # type: ignore[index]
+                "scenarios": list(manifest.scenarios),
+                "warnings": list(manifest.warnings),
+            }
+        )
+        return
     print(f"wrote {out} (run {manifest.run.run_id})")
+    if manifest.run.based_on:
+        print(f"  based on run {manifest.run.based_on['run_id']}")
     for name, counts in manifest.dataset.tables.items():
         print(f"  {name}: {counts.rows_final} rows")
     for record in manifest.scenarios:
@@ -161,17 +264,15 @@ def _report_run(out: Path, manifest: Manifest) -> None:
             f"  scenario {record['index']}: {record['name']} on {record['table']}, "
             f"{record['ledger_entries']} ledger lines"
         )
-    for warning in manifest.warnings:
-        print(f"datachaos: warning: {warning}", file=sys.stderr)
 
 
 def _run_generate(args: argparse.Namespace) -> int:
-    _report_run(args.out, engine.generate(_config_from_flags(args), args.out))
+    _report_run(args.out, engine.generate(_config_from_flags(args), args.out), args.output)
     return 0
 
 
 def _run_run(args: argparse.Namespace) -> int:
-    _report_run(args.out, engine.run(_run_config(args), args.out, force=args.force))
+    _report_run(args.out, engine.run(_run_config(args), args.out, force=args.force), args.output)
     return 0
 
 
@@ -208,6 +309,52 @@ def _run_describe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_validate(args: argparse.Namespace) -> int:
+    result = validate_dir(args.directory, reproduce=args.reproduce)
+    for warning in result.warnings:
+        print(f"datachaos: warning: {warning}", file=sys.stderr)
+    if args.output == "json":
+        _print_json(result.to_dict())
+    else:
+        for problem in result.problems:
+            print(f"{problem.check}: {problem.path}: {problem.message}")
+        counts = result.ledger
+        checked = "files and ledger" + (", and reproduced" if args.reproduce else "")
+        print(f"{'ok' if result.ok else 'failed'}: {args.directory} ({checked})")
+        print(
+            f"  ledger: {counts.total} lines, {counts.verified} verified, "
+            f"{counts.superseded} superseded, {counts.unverifiable} unverifiable"
+        )
+    return 0 if result.ok else 1
+
+
+def _run_report(args: argparse.Namespace) -> int:
+    report = build_report(args.directory)
+    if args.output == "json":
+        _print_json(report)
+    else:
+        print(render_report(report), end="")
+    return 0
+
+
+def _run_inject(args: argparse.Namespace) -> int:
+    scenario = _config.ScenarioConfig(args.scenario, args.table, _config.parse_params(args.param))
+    _report_run(args.out, inject(args.input, args.out, scenario), args.output)
+    return 0
+
+
+def _run_land(args: argparse.Namespace) -> int:
+    result = land(args.directory, args.upto_batch, args.to)
+    if args.output == "json":
+        _print_json(result.to_dict())
+    else:
+        print(
+            f"landed batches up to {result.upto_batch} in {args.to}: "
+            f"{result.copied} files copied, {result.skipped} already there"
+        )
+    return 0
+
+
 def _print_json(document: dict[str, object]) -> None:
     versions = {"schema_version": "1.0", "tool_version": __version__}
     print(json.dumps({**versions, **document}, ensure_ascii=False, indent=2))
@@ -222,6 +369,14 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_list_scenarios(args)
     if args.command == "describe":
         return _run_describe(args)
+    if args.command == "validate":
+        return _run_validate(args)
+    if args.command == "report":
+        return _run_report(args)
+    if args.command == "inject":
+        return _run_inject(args)
+    if args.command == "land":
+        return _run_land(args)
     raise DataChaosError("no command given (see --help)")
 
 
