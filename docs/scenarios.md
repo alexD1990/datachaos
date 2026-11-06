@@ -38,6 +38,23 @@ Replaces a category with a value outside the allowed values.
 | `values` | list | no | `['UNKNOWN']` | The values to use with variant literal. Not allowed with other variants. |
 | `variant` | str | no | `literal` | literal uses values. case_change turns paid into PAID, and NO into no. whitespace turns paid into 'paid '. |
 
+## `late-arriving-data`
+
+Delays ingested_at, so that rows land in a later batch than their event time.
+
+- **Version:** 1
+- **Detects:** Incremental models with a watermark on event time, which never pick up late rows.
+- **Typical dbt test:** `singular test comparing the incremental model with a full refresh`
+- **Applies to:** entity, event_log tables
+
+| Parameter | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `rate` | float or int | no | `none` | Share of the candidate rows to select. Give exactly one of rate and count. |
+| `count` | int | no | `none` | Number of candidate rows to select. Give exactly one of rate and count. |
+| `allow_overlap` | bool | no | `false` | Also select rows whose key an earlier scenario has touched. |
+| `delay_min` | str | yes |  | The shortest delay, such as 6h. |
+| `delay_max` | str | yes |  | The longest delay, such as 2d. Candidates are the rows that stay before as_of with this delay, and rate is a share of those. |
+
 ## `null-critical-column`
 
 Sets a column to NULL, whether or not the schema allows it.

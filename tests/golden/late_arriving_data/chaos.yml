@@ -1,0 +1,15 @@
+version: 1
+seed: 20260107
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 20
+  orders: 50
+  batches: 3
+  batch_interval: 1d
+scenarios:
+  - name: late-arriving-data
+    table: orders
+    params: {count: 4, delay_min: 6h, delay_max: 1d}
+  - name: late-arriving-data
+    table: order_events
+    params: {rate: 0.1, delay_min: 1h, delay_max: 12h}
