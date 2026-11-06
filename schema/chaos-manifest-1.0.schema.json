@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:datachaos:schema:chaos-manifest:1.0",
+  "title": "DataChaos manifest, schema_version 1.x",
+  "description": "chaos-manifest.json. Unknown fields are allowed: minor versions only add fields, and consumers should ignore fields they do not know.",
+  "type": "object",
+  "required": ["schema_version", "tool_version", "run", "dataset", "scenarios", "files", "content_sha256", "warnings"],
+  "properties": {
+    "schema_version": {"type": "string", "pattern": "^1\\.[0-9]+$"},
+    "tool_version": {"type": "string"},
+    "run": {
+      "type": "object",
+      "required": ["run_id", "created_at", "seed", "config"],
+      "properties": {
+        "run_id": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+        "created_at": {"$ref": "#/$defs/timestamp"},
+        "seed": {"type": "integer", "minimum": 0},
+        "config": {"type": "object"}
+      }
+    },
+    "dataset": {
+      "type": "object",
+      "required": ["name", "generator_version", "as_of", "batches", "batch_interval", "tables"],
+      "properties": {
+        "name": {"type": "string"},
+        "generator_version": {"type": "integer", "minimum": 1},
+        "as_of": {"$ref": "#/$defs/timestamp"},
+        "batches": {"type": "integer", "minimum": 1},
+        "batch_interval": {"type": "string", "pattern": "^[0-9]+(s|m|h|d)$"},
+        "tables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["rows_baseline", "rows_final"],
+            "properties": {
+              "rows_baseline": {"type": "integer", "minimum": 0},
+              "rows_final": {"type": "integer", "minimum": 0}
+            }
+          }
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "name", "version", "table", "seed", "params", "stats", "ledger_entries"],
+        "properties": {
+          "index": {"type": "integer", "minimum": 0},
+          "name": {"type": "string"},
+          "version": {"type": "integer", "minimum": 1},
+          "table": {"type": "string"},
+          "seed": {"type": "integer", "minimum": 0},
+          "params": {"type": "object"},
+          "stats": {"type": "object"},
+          "ledger_entries": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^[^\\\\]+$"},
+          "sha256": {"$ref": "#/$defs/sha256"},
+          "rows": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "content_sha256": {"$ref": "#/$defs/sha256"},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "timestamp": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
