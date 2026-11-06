@@ -350,6 +350,7 @@ def test_list_scenarios_as_text(capsys: pytest.CaptureFixture[str]) -> None:
         "null-critical-column",
         "orphaned-foreign-key",
         "out-of-order-events",
+        "schema-drift",
     ]
 
 
@@ -368,6 +369,7 @@ def test_list_scenarios_as_json_is_only_json(capsys: pytest.CaptureFixture[str])
         "null-critical-column",
         "orphaned-foreign-key",
         "out-of-order-events",
+        "schema-drift",
     ]
 
 

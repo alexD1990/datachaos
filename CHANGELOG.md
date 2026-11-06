@@ -27,7 +27,8 @@ All notable changes to this project are documented in this file. The format is b
   changes go to `chaos-ledger.jsonl`. A scenario does not select rows whose key or group an earlier
   one has touched, unless `allow_overlap` is set.
 - Scenarios `duplicate-business-key`, `null-critical-column`, `invalid-enum`,
-  `orphaned-foreign-key`, `late-arriving-data`, `out-of-order-events` and `historical-update`. The manifest warns when NULL is written to a column the schema says is not nullable.
+  `orphaned-foreign-key`, `late-arriving-data`, `out-of-order-events`, `historical-update` and
+  `schema-drift`. The manifest warns when NULL is written to a column the schema says is not nullable.
 
 ### Changed
 - Orders are spread evenly over the time window, instead of piling up towards the end. Generator

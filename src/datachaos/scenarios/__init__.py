@@ -10,6 +10,7 @@ from datachaos.scenarios.late_arriving_data import LateArrivingData
 from datachaos.scenarios.null_critical_column import NullCriticalColumn
 from datachaos.scenarios.orphaned_foreign_key import OrphanedForeignKey
 from datachaos.scenarios.out_of_order_events import OutOfOrderEvents
+from datachaos.scenarios.schema_drift import SchemaDrift
 
 SCENARIOS: dict[str, Scenario] = {
     scenario.spec.name: scenario
@@ -21,5 +22,6 @@ SCENARIOS: dict[str, Scenario] = {
         LateArrivingData(),
         OutOfOrderEvents(),
         HistoricalUpdate(),
+        SchemaDrift(),
     )
 }

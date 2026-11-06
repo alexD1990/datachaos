@@ -15,6 +15,7 @@ from datachaos.scenarios.base import (
     BaseScenario,
     ParamSpec,
     ResolveContext,
+    ResolvedParams,
     ScenarioContext,
     ScenarioOutcome,
     ScenarioSpec,
@@ -113,6 +114,19 @@ class DuplicateBusinessKey(BaseScenario):
                 )
         if not resolved["same_batch"] and ctx.dataset.batches == 1:
             raise FieldError("params.same_batch", "false needs more than one batch")
+
+    def columns_used(
+        self, ctx: ResolveContext, table: str, params: ResolvedParams
+    ) -> frozenset[str]:
+        used = set(cast("list[str]", params["key_columns"]))
+        if params["mutation_mode"] == "mutate_non_key":
+            # Any of these may get a ledger line, which a later change of the column would break.
+            used |= {
+                column.name
+                for column in ctx.stable_columns(table)
+                if column.role in _MUTABLE_ROLES and column.type in _MUTABLE_TYPES
+            }
+        return frozenset(used)
 
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset

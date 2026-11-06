@@ -17,6 +17,7 @@ from datachaos.scenarios.base import (
     Group,
     ParamSpec,
     ResolveContext,
+    ResolvedParams,
     ScenarioContext,
     ScenarioOutcome,
     ScenarioSpec,
@@ -100,6 +101,11 @@ class OrphanedForeignKey(BaseScenario):
             if not keys:
                 raise FieldError("table", f"{table} has no foreign key column")
             resolved["column"] = keys[0]
+
+    def columns_used(
+        self, ctx: ResolveContext, table: str, params: ResolvedParams
+    ) -> frozenset[str]:
+        return frozenset({str(params["column"])})
 
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         if ctx.params["mode"] == "deleted_parent":

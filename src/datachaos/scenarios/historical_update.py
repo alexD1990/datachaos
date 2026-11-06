@@ -15,6 +15,7 @@ from datachaos.scenarios.base import (
     BaseScenario,
     ParamSpec,
     ResolveContext,
+    ResolvedParams,
     ScenarioContext,
     ScenarioOutcome,
     ScenarioSpec,
@@ -120,6 +121,14 @@ class HistoricalUpdate(BaseScenario):
                 "params.older_than",
                 f"no row of {table} is {resolved['older_than']} older than as_of",
             )
+
+    def columns_used(
+        self, ctx: ResolveContext, table: str, params: ResolvedParams
+    ) -> frozenset[str]:
+        schema = ctx.dataset.tables[table].stable_schema
+        roles = (Role.EVENT_TIME, Role.UPDATED_AT)
+        names = {schema.column_with_role(role).name for role in roles}
+        return frozenset(names | set(cast("list[str]", params["columns"])))
 
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset

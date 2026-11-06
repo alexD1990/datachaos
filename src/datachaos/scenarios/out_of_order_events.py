@@ -15,6 +15,7 @@ from datachaos.scenarios.base import (
     Group,
     ParamSpec,
     ResolveContext,
+    ResolvedParams,
     ScenarioContext,
     ScenarioOutcome,
     ScenarioSpec,
@@ -83,6 +84,12 @@ class OutOfOrderEvents(BaseScenario):
         if not keys:
             raise FieldError("params.group_by", f"{table} has no foreign key, so give a column")
         resolved["group_by"] = keys[0]
+
+    def columns_used(
+        self, ctx: ResolveContext, table: str, params: ResolvedParams
+    ) -> frozenset[str]:
+        event_time = ctx.dataset.tables[table].stable_schema.column_with_role(Role.EVENT_TIME).name
+        return frozenset({str(params["group_by"]), event_time})
 
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset

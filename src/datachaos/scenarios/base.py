@@ -43,6 +43,7 @@ class ScenarioSpec:
     typical_dbt_test: str
     applies_to: frozenset[str]
     params: tuple[ParamSpec, ...]
+    changes_schema: bool = False
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,15 @@ class ResolveContext:
         if table not in self.schemas:
             raise FieldError("table", f"unknown table {table!r}{did_you_mean(table, self.schemas)}")
         return self.schemas[table][-1]
+
+    def stable_columns(self, table: str) -> tuple[Column, ...]:
+        """The columns that are identical in every batch, given the changes so far."""
+        schemas = self.schemas[table]
+        return tuple(
+            column
+            for column in schemas[0].columns
+            if all(column in schema.columns for schema in schemas)
+        )
 
 
 @dataclass(frozen=True)
@@ -125,6 +135,12 @@ class Scenario(Protocol):
         """The schema state later scenarios are validated against."""
         ...
 
+    def columns_used(
+        self, ctx: ResolveContext, table: str, params: ResolvedParams
+    ) -> frozenset[str]:
+        """Columns the scenario changes or must read, which schema-drift must leave alone."""
+        ...
+
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome: ...
 
     def check(self, ctx: ScenarioContext, outcome: ScenarioOutcome) -> list[str]:
@@ -165,6 +181,11 @@ class BaseScenario:
 
     def schemas_after(self, ctx: ResolveContext, table: str, params: ResolvedParams) -> SchemaState:
         return ctx.schemas
+
+    def columns_used(
+        self, ctx: ResolveContext, table: str, params: ResolvedParams
+    ) -> frozenset[str]:
+        return frozenset()
 
 
 def did_you_mean(name: str, options: Iterable[str]) -> str:
@@ -232,7 +253,7 @@ def resolve_params(
             value = list(value)
         _check_value(param, value, schema)
         resolved[param.name] = value
-    if ("rate" in resolved) == ("count" in resolved):
+    if "rate" in known and ("rate" in resolved) == ("count" in resolved):
         raise FieldError("params", "give exactly one of rate and count")
     return resolved
 

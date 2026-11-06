@@ -15,6 +15,7 @@ from datachaos.scenarios.base import (
     BaseScenario,
     ParamSpec,
     ResolveContext,
+    ResolvedParams,
     ScenarioContext,
     ScenarioOutcome,
     ScenarioSpec,
@@ -108,6 +109,11 @@ class InvalidEnum(BaseScenario):
         for value in cast("list[str]", resolved["values"]):
             if value in allowed:
                 raise FieldError("params.values", f"{value!r} is an allowed value of the column")
+
+    def columns_used(
+        self, ctx: ResolveContext, table: str, params: ResolvedParams
+    ) -> frozenset[str]:
+        return frozenset({cast(str, params["column"])})
 
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset

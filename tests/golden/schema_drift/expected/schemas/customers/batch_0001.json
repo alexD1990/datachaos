@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "0.1.0",
+  "table": "customers",
+  "kind": "entity",
+  "batch": 1,
+  "columns": [
+    {
+      "name": "customer_id",
+      "type": "string",
+      "nullable": false,
+      "role": "key"
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp",
+      "nullable": false,
+      "role": "event_time"
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp",
+      "nullable": false,
+      "role": "updated_at"
+    },
+    {
+      "name": "country_code",
+      "type": "string",
+      "nullable": false,
+      "role": "enum",
+      "allowed_values": [
+        "NO",
+        "SE",
+        "DK",
+        "FI",
+        "DE"
+      ]
+    },
+    {
+      "name": "is_active",
+      "type": "boolean",
+      "nullable": false,
+      "role": "attribute"
+    },
+    {
+      "name": "ingested_at",
+      "type": "timestamp",
+      "nullable": false,
+      "role": "ingestion_time"
+    }
+  ]
+}
