@@ -92,12 +92,7 @@ def run(
     baseline = _build_dataset(config)
     planned = resolve_scenarios(config, baseline)
     applied = _apply_scenarios(config, baseline, planned)
-    resolved = replace(
-        config,
-        scenarios=tuple(
-            ScenarioConfig(item.scenario.spec.name, item.table, item.params) for item in planned
-        ),
-    )
+    resolved = _resolved_config(config, planned)
     run_id = compute_run_id(resolved)
     with atomic_output(out, run_id, force=force) as root:
         files = [_write_ledger(root, applied.ledger), *_write_tables(root, applied.dataset, config)]
@@ -123,6 +118,22 @@ def run(
         )
         write_json(root / MANIFEST_FILE, manifest.to_dict())
     return manifest
+
+
+def resolved_run_id(config: RunConfig) -> str:
+    """The run_id a run of this config gets, without running it."""
+    validate_config(config)
+    planned = resolve_scenarios(config, _build_dataset(config))
+    return compute_run_id(_resolved_config(config, planned))
+
+
+def _resolved_config(config: RunConfig, planned: tuple[_Planned, ...]) -> RunConfig:
+    return replace(
+        config,
+        scenarios=tuple(
+            ScenarioConfig(item.scenario.spec.name, item.table, item.params) for item in planned
+        ),
+    )
 
 
 def resolve_scenarios(config: RunConfig, baseline: Dataset) -> tuple[_Planned, ...]:

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from datachaos import config as _config
-from datachaos import engine
+from datachaos import dbtcheck, engine
 from datachaos._version import __version__
 from datachaos.errors import DataChaosError
 from datachaos.inject import inject
@@ -59,6 +59,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_report(commands)
     _add_inject(commands)
     _add_land(commands)
+    _add_check_dbt(commands)
     return parser
 
 
@@ -213,6 +214,34 @@ def _add_land(commands: argparse._SubParsersAction[_Parser]) -> None:
     _add_verbose(parser)
 
 
+def _add_check_dbt(commands: argparse._SubParsersAction[_Parser]) -> None:
+    parser = commands.add_parser(
+        "check-dbt",
+        help="compare dbt results with the expectations in a config",
+        description=(
+            "Reads one or more dbt run_results.json files and merges them: a node failed if it has "
+            "status fail or error in any of them. Give the files from both dbt run and dbt test, "
+            "since a model error from dbt run can be followed by passing tests on the old table. "
+            "Exit code 1 if an expected failure did not happen. A run without scenarios expects "
+            "every node to pass."
+        ),
+    )
+    parser.add_argument("--run", required=True, type=Path, metavar="DIR", help="DataChaos output")
+    parser.add_argument(
+        "--run-results",
+        required=True,
+        action="append",
+        type=Path,
+        metavar="PATH",
+        help="a run_results.json file; give it once per dbt run",
+    )
+    parser.add_argument(
+        "--config", required=True, type=Path, help="the config of the run, with its expectations"
+    )
+    _add_output(parser)
+    _add_verbose(parser)
+
+
 def _config_from_flags(
     args: argparse.Namespace, scenarios: tuple[_config.ScenarioConfig, ...] = ()
 ) -> _config.RunConfig:
@@ -355,6 +384,15 @@ def _run_land(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_check_dbt(args: argparse.Namespace) -> int:
+    result = dbtcheck.check(args.run, args.run_results, args.config)
+    if args.output == "json":
+        _print_json(result.to_dict())
+    else:
+        print(dbtcheck.render_check(result), end="")
+    return 0 if result.ok else 1
+
+
 def _print_json(document: dict[str, object]) -> None:
     versions = {"schema_version": "1.0", "tool_version": __version__}
     print(json.dumps({**versions, **document}, ensure_ascii=False, indent=2))
@@ -377,6 +415,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_inject(args)
     if args.command == "land":
         return _run_land(args)
+    if args.command == "check-dbt":
+        return _run_check_dbt(args)
     raise DataChaosError("no command given (see --help)")
 
 

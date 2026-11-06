@@ -31,6 +31,7 @@ ALLOWED = {
         "validate",
         "dbtcheck",
     },
+    "dbtcheck": {"config", "engine", "errors", "io", "validate"},
     "report": {"errors", "validate"},
     "land": {"errors", "io", "validate"},
     "inject": {"_version", "config", "engine", "errors", "model", "validate"},

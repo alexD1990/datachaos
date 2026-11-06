@@ -22,7 +22,7 @@ All notable changes to this project are documented in this file. The format is b
   earlier output, but only when its manifest lists every file in the directory.
 - `datachaos list-scenarios` and `datachaos describe`, with `--output json`, and
   `docs/scenarios.md` generated from the same specs.
-- `--output json` on `generate`, `run`, `validate`, `report`, `inject` and `land`: stdout holds only one JSON document with `schema_version`
+- `--output json` on `generate`, `run`, `validate`, `report`, `inject`, `land` and `check-dbt`: stdout holds only one JSON document with `schema_version`
   and `tool_version`, and warnings go to stderr.
 - `datachaos validate`, and `datachaos.validate()`. Without flags it checks what can be decided from
   disk: hashes, columns per batch schema, schema changes, and that each ledger line can be observed.
@@ -36,6 +36,9 @@ All notable changes to this project are documented in this file. The format is b
 - `datachaos land`: copies batches up to one, with their schema files, to a landing directory. It
   never deletes or overwrites: an equal file is skipped, and a different one stops it before anything
   is copied.
+- `datachaos check-dbt`: compares one or more dbt `run_results.json` files with the expectations in a
+  config. A node failed if it has status `fail` or `error` in any file, and failures nobody expected
+  are reported. A run without scenarios expects every node to pass.
 - Running a scenario: every scenario is validated before any runs, each against the schema state
   the earlier ones leave behind, and a scenario's invariant is checked right after it runs. All
   changes go to `chaos-ledger.jsonl`. A scenario does not select rows whose key or group an earlier
