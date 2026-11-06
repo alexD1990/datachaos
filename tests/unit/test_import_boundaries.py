@@ -20,6 +20,7 @@ ALLOWED = {
     "errors": set(),
     "config": {"errors", "timeutil"},
     "cli": {"_version", "config", "engine", "errors", "model", "validate", "dbtcheck", "land"},
+    "validate": {"_version", "config", "engine", "errors", "io", "model", "timeutil"},
 }
 
 

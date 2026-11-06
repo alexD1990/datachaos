@@ -14,6 +14,7 @@ from datachaos import engine
 from datachaos._version import __version__
 from datachaos.errors import DataChaosError
 from datachaos.model.manifest import Manifest
+from datachaos.validate import validate_dir
 
 _FORMATS = {"csv": ("csv",), "jsonl": ("jsonl",), "both": ("csv", "jsonl")}
 _NOT_WITH_CONFIG = {
@@ -51,6 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_run(commands)
     _add_list_scenarios(commands)
     _add_describe(commands)
+    _add_validate(commands)
     return parser
 
 
@@ -126,6 +128,30 @@ def _add_list_scenarios(commands: argparse._SubParsersAction[_Parser]) -> None:
 def _add_describe(commands: argparse._SubParsersAction[_Parser]) -> None:
     parser = commands.add_parser("describe", help="describe one scenario and its parameters")
     parser.add_argument("scenario")
+    _add_output(parser)
+    _add_verbose(parser)
+
+
+def _add_validate(commands: argparse._SubParsersAction[_Parser]) -> None:
+    parser = commands.add_parser(
+        "validate",
+        help="check output against its manifest and ledger",
+        description=(
+            "Without flags, checks only what can be decided from the files on disk: hashes, "
+            "columns per batch schema, schema changes, and that every ledger line can be observed "
+            "in the final state. A line that cannot be proved wrong without row IDs counts as "
+            "unverifiable, with a warning. Scenario invariants are only checked with --reproduce."
+        ),
+    )
+    parser.add_argument("directory", type=Path)
+    parser.add_argument(
+        "--reproduce",
+        action="store_true",
+        help=(
+            "also run the config in the manifest again in a temp directory, which checks the "
+            "invariant of every scenario, and require identical files"
+        ),
+    )
     _add_output(parser)
     _add_verbose(parser)
 
@@ -223,6 +249,25 @@ def _run_describe(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_validate(args: argparse.Namespace) -> int:
+    result = validate_dir(args.directory, reproduce=args.reproduce)
+    for warning in result.warnings:
+        print(f"datachaos: warning: {warning}", file=sys.stderr)
+    if args.output == "json":
+        _print_json(result.to_dict())
+    else:
+        for problem in result.problems:
+            print(f"{problem.check}: {problem.path}: {problem.message}")
+        counts = result.ledger
+        checked = "files and ledger" + (", and reproduced" if args.reproduce else "")
+        print(f"{'ok' if result.ok else 'failed'}: {args.directory} ({checked})")
+        print(
+            f"  ledger: {counts.total} lines, {counts.verified} verified, "
+            f"{counts.superseded} superseded, {counts.unverifiable} unverifiable"
+        )
+    return 0 if result.ok else 1
+
+
 def _print_json(document: dict[str, object]) -> None:
     versions = {"schema_version": "1.0", "tool_version": __version__}
     print(json.dumps({**versions, **document}, ensure_ascii=False, indent=2))
@@ -237,6 +282,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _run_list_scenarios(args)
     if args.command == "describe":
         return _run_describe(args)
+    if args.command == "validate":
+        return _run_validate(args)
     raise DataChaosError("no command given (see --help)")
 
 
