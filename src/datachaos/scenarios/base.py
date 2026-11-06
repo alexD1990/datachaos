@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import difflib
+import hashlib
 import math
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -11,7 +12,7 @@ from typing import Protocol, TypeAlias, TypeVar, cast
 from datachaos.errors import DataChaosError, FieldError
 from datachaos.model.dataset import Dataset
 from datachaos.model.ledger import LedgerEntry
-from datachaos.model.schema import Column, ColumnType, Role, TableSchema
+from datachaos.model.schema import Column, ColumnType, Role, SchemaStep, TableSchema
 from datachaos.model.table import Row, Table, Value, sorted_rows
 from datachaos.rng import Rng
 from datachaos.timeutil import batch_index, parse_duration, parse_timestamp, window_start
@@ -353,13 +354,12 @@ def batch_bounds(dataset: Dataset) -> tuple[int, int]:
 
 def batch_of(dataset: Dataset, table: Table, row: Row) -> int:
     start, interval = batch_bounds(dataset)
-    column = ingestion_column(table.schema_by_batch[0])
-    return batch_index(parse_timestamp(str(row.values[column])), start, interval)
+    return batch_index(parse_timestamp(str(row.values[table.ingestion_column])), start, interval)
 
 
 def with_rows(dataset: Dataset, table: str, rows: Sequence[Row]) -> Dataset:
     current = dataset.tables[table]
-    updated = replace(current, rows=sorted_rows(current.schema_by_batch[0], rows))
+    updated = replace(current, rows=sorted_rows(current.stable_schema, rows))
     return replace(dataset, tables={**dataset.tables, table: updated})
 
 
@@ -381,3 +381,43 @@ def other_value(column: Column, value: Value, rng: Rng) -> Value:
         text = str(units).rjust(scale + 1, "0")
         return f"{text[:-scale]}.{text[-scale:]}" if scale else text
     return f"{value}-changed"
+
+
+def apply_step(step: SchemaStep, values: Mapping[str, Value], rid: str) -> dict[str, Value]:
+    """The values of a row after a schema change."""
+    result = dict(values)
+    if step.operation == "add_column":
+        result[step.column] = None if step.fill == "null" else _generated(step, rid)
+    elif step.operation == "drop_column":
+        del result[step.column]
+    elif step.operation == "rename_column":
+        result[cast(str, step.new_name)] = result.pop(step.column)
+    else:
+        result[step.column] = convert_value(cast(str, step.to), result[step.column])
+    return result
+
+
+def conform_row(table: Table, row: Row, from_batch: int, to_batch: int) -> Row:
+    """The row in the form of a later batch. Rows only ever move forward between batches."""
+    values: Mapping[str, Value] = row.values
+    for step in table.schema_steps:
+        if from_batch < step.from_batch <= to_batch:
+            values = apply_step(step, values, row.rid)
+    return row if values is row.values else replace(row, values=values)
+
+
+def convert_value(to: str, value: Value) -> Value:
+    if value is None:
+        return None
+    if to == "string_comma_decimal":
+        return str(value).replace(".", ",")
+    if to == "string_local_format":
+        text = str(value)
+        return f"{text[8:10]}.{text[5:7]}.{text[:4]} {text[11:16]}"
+    if to == "string_yes_no":
+        return "yes" if value else "no"
+    return str(value)
+
+
+def _generated(step: SchemaStep, rid: str) -> str:
+    return hashlib.sha256(f"{step.fill_seed}:{rid}".encode()).hexdigest()[:8]

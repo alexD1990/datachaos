@@ -109,7 +109,7 @@ class OrphanedForeignKey(BaseScenario):
     def _point_at_nothing(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset
         table = dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         column = _column(ctx)
         name = column.name
         parents = _parent_ids(dataset, column)
@@ -149,12 +149,12 @@ class OrphanedForeignKey(BaseScenario):
     def _delete_parents(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset
         children = dataset.tables[ctx.table]
-        child_schema = children.schema_by_batch[0]
+        child_schema = children.stable_schema
         column = _column(ctx)
         name = column.name
         parent_name, parent_column = _parent_of(column)
         parents = dataset.tables[parent_name]
-        parent_schema = parents.schema_by_batch[0]
+        parent_schema = parents.stable_schema
 
         by_parent: dict[object, list[Row]] = {}
         for row in children.rows:
@@ -285,7 +285,7 @@ class OrphanedForeignKey(BaseScenario):
 
 
 def _column(ctx: ScenarioContext) -> Column:
-    schema = ctx.dataset.tables[ctx.table].schema_by_batch[0]
+    schema = ctx.dataset.tables[ctx.table].stable_schema
     column = column_named(schema, ctx.params["column"])
     assert column is not None
     return column

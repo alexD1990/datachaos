@@ -22,6 +22,7 @@ from datachaos.scenarios.base import (
     batch_bounds,
     batch_of,
     column_named,
+    conform_row,
     ingestion_column,
     key_of,
     new_rid,
@@ -112,7 +113,7 @@ class HistoricalUpdate(BaseScenario):
         if not 1 <= in_batch < batches:
             raise FieldError("params.in_batch", f"must be from 1 to {batches - 1}, got {in_batch}")
         baseline = ctx.dataset.tables[table]
-        event_time = baseline.schema_by_batch[0].column_with_role(Role.EVENT_TIME).name
+        event_time = baseline.stable_schema.column_with_role(Role.EVENT_TIME).name
         cutoff = _cutoff(ctx.dataset.as_of, resolved)
         if not any(parse_timestamp(str(row.values[event_time])) < cutoff for row in baseline.rows):
             raise FieldError(
@@ -123,7 +124,7 @@ class HistoricalUpdate(BaseScenario):
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset
         table = dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         event_time = schema.column_with_role(Role.EVENT_TIME).name
         updated_at = schema.column_with_role(Role.UPDATED_AT).name
         ingestion = ingestion_column(schema)
@@ -186,7 +187,9 @@ class HistoricalUpdate(BaseScenario):
                         after=values[name],
                     )
                 )
-            versions.append(Row(rid, values))
+            source_batch = batch_of(dataset, table, row)
+            shaped = conform_row(table, Row(row.rid, values), source_batch, in_batch)
+            versions.append(Row(rid, shaped.values))
         stats = ScenarioStats(
             rows_before=len(table.rows),
             rows_after=len(table.rows) + len(versions),
@@ -200,7 +203,7 @@ class HistoricalUpdate(BaseScenario):
 
     def check(self, ctx: ScenarioContext, outcome: ScenarioOutcome) -> list[str]:
         table = ctx.dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         event_time = schema.column_with_role(Role.EVENT_TIME).name
         updated_at = schema.column_with_role(Role.UPDATED_AT).name
         ingestion = ingestion_column(schema)
@@ -239,8 +242,11 @@ class HistoricalUpdate(BaseScenario):
                 problems.append(f"version {entry.rid} is not in batch {in_batch}")
             if batch_of(ctx.dataset, table, source) >= in_batch:
                 problems.append(f"the source of {entry.rid} is not in an earlier batch")
+            shaped = conform_row(table, source, batch_of(ctx.dataset, table, source), in_batch)
+            if set(new.values) != set(shaped.values):
+                problems.append(f"version {entry.rid} does not have the form of batch {in_batch}")
             differing = {
-                name for name in new.values if new.values[name] != source.values.get(name)
+                name for name in new.values if new.values[name] != shaped.values.get(name)
             } - {updated_at, ingestion}
             if differing != set(names) or changes[entry.rid] != len(names):
                 problems.append(f"version {entry.rid} differs in {sorted(differing)}")

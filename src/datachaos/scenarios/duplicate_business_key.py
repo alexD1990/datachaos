@@ -21,6 +21,7 @@ from datachaos.scenarios.base import (
     ScenarioStats,
     batch_bounds,
     batch_of,
+    conform_row,
     ingestion_column,
     key_of,
     new_rid,
@@ -101,7 +102,7 @@ class DuplicateBusinessKey(BaseScenario):
             ]
         key_columns = cast("list[str]", resolved["key_columns"])
         baseline = ctx.dataset.tables[table]
-        known = {column.name for column in baseline.schema_by_batch[0].columns}
+        known = {column.name for column in baseline.stable_schema.columns}
         # A column an earlier scenario added has no baseline values to check.
         if set(key_columns) <= known:
             keys = Counter(_key(row, key_columns) for row in baseline.rows)
@@ -116,7 +117,7 @@ class DuplicateBusinessKey(BaseScenario):
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset
         table = dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         same_batch = bool(ctx.params["same_batch"])
         last = dataset.batches - 1
         start, interval = batch_bounds(dataset)
@@ -150,7 +151,8 @@ class DuplicateBusinessKey(BaseScenario):
                 after = other_value(chosen, before, ctx.rng)
                 values[chosen.name] = after
             rid = new_rid(ctx.index, number)
-            copies.append(Row(rid, values))
+            shaped = conform_row(table, Row(row.rid, values), source_batch, target)
+            copies.append(Row(rid, shaped.values))
             ledger.append(
                 LedgerEntry(
                     scenario_index=ctx.index,
@@ -180,7 +182,7 @@ class DuplicateBusinessKey(BaseScenario):
     def check(self, ctx: ScenarioContext, outcome: ScenarioOutcome) -> list[str]:
         before = ctx.dataset.tables[ctx.table]
         after = outcome.dataset.tables[ctx.table]
-        schema = before.schema_by_batch[0]
+        schema = before.stable_schema
         ingestion = ingestion_column(schema)
         key_columns = cast("list[str]", ctx.params["key_columns"])
         same_batch = bool(ctx.params["same_batch"])
@@ -212,14 +214,17 @@ class DuplicateBusinessKey(BaseScenario):
             expected_count = counts_before[key] + added[key] if ctx.params["allow_overlap"] else 2
             if counts_after[key] != expected_count:
                 problems.append(f"key {key} occurs {counts_after[key]} times")
+            batch = batch_of(outcome.dataset, after, copy)
+            source_batch = batch_of(ctx.dataset, before, source)
+            shaped = conform_row(before, source, source_batch, batch)
+            if set(copy.values) != set(shaped.values):
+                problems.append(f"copy {entry.rid} does not have the form of batch {batch}")
             changed = {
-                name for name in copy.values if copy.values[name] != source.values.get(name)
+                name for name in copy.values if copy.values[name] != shaped.values.get(name)
             } - {ingestion}
             expected = {entry.column} if entry.column else set()
             if changed != expected:
                 problems.append(f"copy {entry.rid} differs in {sorted(changed)}")
-            batch = batch_of(outcome.dataset, after, copy)
-            source_batch = batch_of(ctx.dataset, before, source)
             if batch != entry.batch or (batch == source_batch) != same_batch:
                 problems.append(f"copy {entry.rid} is in batch {batch}")
             if not same_batch and batch < source_batch:

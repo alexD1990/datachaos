@@ -21,6 +21,7 @@ from datachaos.scenarios.base import (
     ScenarioStats,
     batch_bounds,
     batch_of,
+    conform_row,
     ingestion_column,
     key_of,
     select,
@@ -82,7 +83,7 @@ class LateArrivingData(BaseScenario):
                 f"{resolved['delay_min']} is longer than delay_max {resolved['delay_max']}",
             )
         baseline = ctx.dataset.tables[table]
-        column = ingestion_column(baseline.schema_by_batch[0])
+        column = ingestion_column(baseline.stable_schema)
         latest = parse_timestamp(ctx.dataset.as_of) - longest
         if not any(parse_timestamp(str(row.values[column])) < latest for row in baseline.rows):
             raise FieldError(
@@ -94,7 +95,7 @@ class LateArrivingData(BaseScenario):
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset
         table = dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         column = ingestion_column(schema)
         start, interval = batch_bounds(dataset)
         shortest = parse_duration(cast(str, ctx.params["delay_min"]))
@@ -112,7 +113,12 @@ class LateArrivingData(BaseScenario):
             after = before + ctx.rng.between(shortest, longest)
             old_batch = batch_index(before, start, interval)
             new_batch = batch_index(after, start, interval)
-            moved[row.rid] = format_timestamp(after)
+            moved[row.rid] = conform_row(
+                table,
+                replace(row, values={**row.values, column: format_timestamp(after)}),
+                old_batch,
+                new_batch,
+            )
             common = {
                 "scenario_index": ctx.index,
                 "scenario": self.spec.name,
@@ -126,7 +132,7 @@ class LateArrivingData(BaseScenario):
                     action="set_value",
                     column=column,
                     before=row.values[column],
-                    after=moved[row.rid],
+                    after=moved[row.rid].values[column],
                     **common,  # type: ignore[arg-type]
                 )
             )
@@ -139,10 +145,7 @@ class LateArrivingData(BaseScenario):
                         **common,  # type: ignore[arg-type]
                     )
                 )
-        rows = [
-            replace(row, values={**row.values, column: moved[row.rid]}) if row.rid in moved else row
-            for row in table.rows
-        ]
+        rows = [moved.get(row.rid, row) for row in table.rows]
         stats = ScenarioStats(
             rows_before=len(table.rows),
             rows_after=len(rows),
@@ -154,7 +157,7 @@ class LateArrivingData(BaseScenario):
 
     def check(self, ctx: ScenarioContext, outcome: ScenarioOutcome) -> list[str]:
         table = ctx.dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         column = ingestion_column(schema)
         shortest = parse_duration(cast(str, ctx.params["delay_min"]))
         longest = parse_duration(cast(str, ctx.params["delay_max"]))
@@ -176,10 +179,13 @@ class LateArrivingData(BaseScenario):
                 if current != row:
                     problems.append(f"row {row.rid} changed without being selected")
                 continue
+            old_batch = batch_of(ctx.dataset, table, row)
+            new_batch = batch_of(outcome.dataset, after_table, current)
+            shaped = conform_row(table, row, old_batch, new_batch)
             for name in times:
-                if name != column and current.values.get(name) != row.values.get(name):
+                if name != column and current.values.get(name) != shaped.values.get(name):
                     problems.append(f"row {row.rid} changed its {name}")
-            if {**current.values, column: None} != {**row.values, column: None}:
+            if {**current.values, column: None} != {**shaped.values, column: None}:
                 problems.append(f"row {row.rid} changed more than {column}")
             old = parse_timestamp(str(row.values[column]))
             new = parse_timestamp(str(current.values[column]))
@@ -187,8 +193,6 @@ class LateArrivingData(BaseScenario):
                 problems.append(f"row {row.rid} was delayed {new - old} seconds")
             if new >= as_of:
                 problems.append(f"row {row.rid} landed on or after as_of")
-            old_batch = batch_of(ctx.dataset, table, row)
-            new_batch = batch_of(outcome.dataset, after_table, current)
             move = moves.get(row.rid)
             if (old_batch != new_batch) != (move is not None):
                 problems.append(f"row {row.rid} is in batch {new_batch} against its ledger")

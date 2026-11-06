@@ -69,6 +69,19 @@ class Column:
 
 
 @dataclass(frozen=True)
+class SchemaStep:
+    """A change to a table's schema from one batch on, as schema-drift records it."""
+
+    from_batch: int
+    operation: Literal["add_column", "drop_column", "rename_column", "change_type"]
+    column: str
+    new_name: str | None = None
+    to: str | None = None
+    fill: Literal["null", "generated"] = "null"
+    fill_seed: int = 0
+
+
+@dataclass(frozen=True)
 class TableSchema:
     name: str
     columns: tuple[Column, ...]

@@ -28,7 +28,7 @@ from datachaos.model.manifest import (
     TableCounts,
     compute_content_sha256,
 )
-from datachaos.model.schema import Column, ColumnType, Role, TableSchema
+from datachaos.model.schema import Column, ColumnType, TableSchema
 from datachaos.model.table import Batch, Row, Table, Value
 from datachaos.rng import Rng, derive_seed
 from datachaos.scenarios import SCENARIOS
@@ -219,7 +219,7 @@ def _not_touched(dataset: Dataset, table: str, ledger: list[LedgerEntry]) -> Cal
     touched_groups = [entry.group for entry in earlier if entry.group is not None]
     groups = {_key_identity(group) for group in touched_groups}
     group_columns = sorted({tuple(sorted(group)) for group in touched_groups})
-    schema = dataset.tables[table].schema_by_batch[0]
+    schema = dataset.tables[table].stable_schema
 
     def eligible(row: Row) -> bool:
         if row.rid in rids or _key_identity(key_of(row, schema)) in keys:
@@ -277,7 +277,7 @@ def partition(table: Table, dataset: Dataset) -> tuple[Batch, ...]:
     interval = parse_duration(dataset.batch_interval)
     start = window_start(parse_timestamp(dataset.as_of), dataset.batches, interval)
     by_batch: list[list[Row]] = [[] for _ in range(dataset.batches)]
-    column = table.schema_by_batch[0].column_with_role(Role.INGESTION_TIME).name
+    column = table.ingestion_column
     for row in table.rows:
         index = batch_index(parse_timestamp(str(row.values[column])), start, interval)
         if not 0 <= index < dataset.batches:

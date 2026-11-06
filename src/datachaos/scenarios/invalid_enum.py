@@ -112,7 +112,7 @@ class InvalidEnum(BaseScenario):
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
         dataset = ctx.dataset
         table = dataset.tables[ctx.table]
-        schema = table.schema_by_batch[0]
+        schema = table.stable_schema
         name = str(ctx.params["column"])
         allowed = _column(schema, name).allowed_values
         # Only valid values, so that the result is always a change, and never valid by accident.
@@ -150,7 +150,7 @@ class InvalidEnum(BaseScenario):
 
     def check(self, ctx: ScenarioContext, outcome: ScenarioOutcome) -> list[str]:
         name = str(ctx.params["column"])
-        allowed = _column(ctx.dataset.tables[ctx.table].schema_by_batch[0], name).allowed_values
+        allowed = _column(ctx.dataset.tables[ctx.table].stable_schema, name).allowed_values
         before = ctx.dataset.tables[ctx.table].rows
         after = {row.rid: row for row in outcome.dataset.tables[ctx.table].rows}
         problems = []
