@@ -399,3 +399,63 @@ def test_describe_unknown_scenario_gives_exit_2_and_a_suggestion(
     assert capsys.readouterr().err == (
         "datachaos: error: unknown scenario 'invalid-enun' (did you mean invalid-enum?)\n"
     )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["generate", "--orders", "5"],
+        ["run", "--scenario", "invalid-enum", "--table", "orders", "--orders", "5"]
+        + ["--param", "column=status", "--param", "count=1"],
+    ],
+)
+def test_output_json_is_only_json_with_versions(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], command: list[str]
+) -> None:
+    out = tmp_path / "out"
+    assert cli.main([*command, "--out", str(out), "--output", "json"]) == 0
+    captured = capsys.readouterr()
+    document = json.loads(captured.out)
+    manifest = read_json(out / "chaos-manifest.json")
+    assert list(document) == [
+        "schema_version",
+        "tool_version",
+        "status",
+        "directory",
+        "run_id",
+        "content_sha256",
+        "tables",
+        "scenarios",
+        "warnings",
+    ]
+    assert document["schema_version"] == "1.0"
+    assert document["tool_version"] == __version__
+    assert document["status"] == "ok"
+    assert document["directory"] == str(out)
+    assert document["run_id"] == manifest["run"]["run_id"]
+    assert document["content_sha256"] == manifest["content_sha256"]
+    assert document["tables"] == manifest["dataset"]["tables"]
+    assert document["scenarios"] == manifest["scenarios"]
+    assert captured.err == ""
+
+
+def test_output_json_keeps_warnings_on_stderr_and_in_the_document(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "out"
+    args = ["run", "--config", str(_write_config(tmp_path)), "--out", str(out), "--output", "json"]
+    assert cli.main(args) == 0
+    captured = capsys.readouterr()
+    document = json.loads(captured.out)
+    assert len(document["warnings"]) == 1
+    assert captured.err == f"datachaos: warning: {document['warnings'][0]}\n"
+
+
+def test_output_json_with_an_error_writes_nothing_to_stdout(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = cli.main(["generate", "--orders", "0", "--out", str(tmp_path / "x"), "--output", "json"])
+    assert code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("datachaos: error: dataset.orders")

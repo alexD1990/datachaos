@@ -92,6 +92,7 @@ def _add_generate(commands: argparse._SubParsersAction[_Parser]) -> None:
         "--out", required=True, type=Path, help="output directory (missing or empty)"
     )
     _add_data_flags(parser)
+    _add_output(parser)
     _add_verbose(parser)
 
 
@@ -112,6 +113,7 @@ def _add_run(commands: argparse._SubParsersAction[_Parser]) -> None:
         "--param", action="append", default=[], metavar="KEY=VALUE", help="scenario parameter"
     )
     _add_data_flags(parser)
+    _add_output(parser)
     _add_verbose(parser)
 
 
@@ -152,7 +154,22 @@ def _config_from_flags(
     )
 
 
-def _report_run(out: Path, manifest: Manifest) -> None:
+def _report_run(out: Path, manifest: Manifest, output: str) -> None:
+    for warning in manifest.warnings:
+        print(f"datachaos: warning: {warning}", file=sys.stderr)
+    if output == "json":
+        _print_json(
+            {
+                "status": "ok",
+                "directory": str(out),
+                "run_id": manifest.run.run_id,
+                "content_sha256": manifest.content_sha256,
+                "tables": manifest.to_dict()["dataset"]["tables"],  # type: ignore[index]
+                "scenarios": list(manifest.scenarios),
+                "warnings": list(manifest.warnings),
+            }
+        )
+        return
     print(f"wrote {out} (run {manifest.run.run_id})")
     for name, counts in manifest.dataset.tables.items():
         print(f"  {name}: {counts.rows_final} rows")
@@ -161,17 +178,15 @@ def _report_run(out: Path, manifest: Manifest) -> None:
             f"  scenario {record['index']}: {record['name']} on {record['table']}, "
             f"{record['ledger_entries']} ledger lines"
         )
-    for warning in manifest.warnings:
-        print(f"datachaos: warning: {warning}", file=sys.stderr)
 
 
 def _run_generate(args: argparse.Namespace) -> int:
-    _report_run(args.out, engine.generate(_config_from_flags(args), args.out))
+    _report_run(args.out, engine.generate(_config_from_flags(args), args.out), args.output)
     return 0
 
 
 def _run_run(args: argparse.Namespace) -> int:
-    _report_run(args.out, engine.run(_run_config(args), args.out, force=args.force))
+    _report_run(args.out, engine.run(_run_config(args), args.out, force=args.force), args.output)
     return 0
 
 
