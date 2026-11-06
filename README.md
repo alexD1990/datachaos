@@ -4,8 +4,9 @@ DataChaos will generate a synthetic, deterministic dataset delivered in batches,
 controlled data quality faults, keep a ledger of exactly what changed, and check whether your
 pipeline's dbt tests caught the faults.
 
-**Status:** early development. The clean baseline dataset can be generated and all eight scenarios
-can inject faults; checking dbt results is not implemented yet.
+**Status:** early development. The clean baseline dataset can be generated, all eight scenarios can
+inject faults, and runs can be validated, reported on and landed batch by batch. Checking dbt results
+is not implemented yet.
 
 ## Install
 
@@ -141,6 +142,75 @@ datachaos run --out chaos --scenario invalid-enum --table orders --param column=
 - Everything is validated before any scenario runs, and all scenarios run before anything is
   written, so an error leaves no output.
 - `--force` replaces earlier output, but only if its manifest lists every file in the directory.
+
+## Check a run
+
+`datachaos validate` has two levels, and they answer different questions:
+
+| | `validate DIR` | `validate DIR --reproduce` |
+|---|---|---|
+| Question | Do the files on disk agree with the manifest and the ledger? | Would DataChaos write these files again? |
+| Hashes, columns, schema changes | yes | yes |
+| Every ledger line can be observed | yes | yes |
+| Scenario invariants | no | yes, in a new run of the config |
+| Needs the same DataChaos version | no | yes, or the files differ |
+
+```console
+$ datachaos validate chaos --reproduce
+ok: chaos (files and ledger, and reproduced)
+  ledger: 40 lines, 20 verified, 0 superseded, 20 unverifiable
+datachaos: warning: 20 ledger lines cannot be verified: several rows share the key, or the key is NULL (--emit-row-ids makes them exact)
+```
+
+Exit code 1 means something is provably wrong, and exit code 2 that the directory is not DataChaos
+output. `validate` never reports what it cannot prove. Row IDs are not in the data by default, so
+ledger lines are checked through the key. A line whose key is shared by several rows or is NULL
+counts as unverifiable, with a warning and exit code 0. With `--emit-row-ids` every line is checked
+exactly. With `allow_overlap`, only the last line per row and column counts, and the earlier ones are
+reported as superseded.
+
+`datachaos report DIR` summarizes a run per scenario from the manifest and the ledger. It checks
+nothing.
+
+## Add a scenario to earlier output
+
+```console
+$ datachaos inject --input chaos --out more --scenario late-arriving-data --table orders --param count=5 --param delay_min=6h --param delay_max=1d
+wrote more (run 7817a2a143c43c98)
+  based on run e31a5622bdf493fe
+  customers: 100 rows
+  orders: 1020 rows
+  order_events: 3300 rows
+  scenario 0: duplicate-business-key on orders, 20 ledger lines
+  scenario 1: null-critical-column on orders, 10 ledger lines
+  scenario 2: invalid-enum on orders, 10 ledger lines
+  scenario 3: late-arriving-data on orders, 9 ledger lines
+datachaos: warning: scenarios[1]: orders.customer_id is not nullable in the schema, but 10 rows now hold NULL
+```
+
+`inject` does not read the data files, since row IDs are not on disk. It runs the config in the
+manifest again and requires the same content, which needs the same DataChaos version. Then it adds
+the scenario at the end and writes everything to a new directory. `run.based_on` in the new manifest
+says which run it builds on.
+
+## Land batches one at a time
+
+```console
+$ datachaos land chaos --upto-batch 2 --to landing
+landed batches up to 2 in landing: 18 files copied, 0 already there
+$ datachaos land chaos --upto-batch 3 --to landing
+landed batches up to 3 in landing: 6 files copied, 18 already there
+```
+
+Data files go to `landing/<table>/` and schema files to `landing/schemas/<table>/`. `land` never
+deletes or overwrites: an equal file is skipped, and a different one stops it with exit code 2 before
+anything is copied.
+
+## Machine-readable output
+
+`--output json` on `generate`, `run`, `inject`, `validate`, `report`, `land`, `list-scenarios` and
+`describe` writes one JSON document with `schema_version` and `tool_version` to stdout, and warnings
+to stderr.
 
 ## Development
 

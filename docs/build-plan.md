@@ -641,7 +641,7 @@ at de alltid stemmer overens.
 }
 ```
 
-`files` lister ledgeren, datafilene og schema-filene, sortert på sti, men ikke manifestet selv. `rows`
+`run.based_on` er valgfritt og finnes bare etter `inject`. `files` lister ledgeren, datafilene og schema-filene, sortert på sti, men ikke manifestet selv. `rows`
 finnes bare for ledgeren og datafilene. Stier bruker `/` som skilletegn på alle operativsystemer.
 
 `content_sha256` dekker ledgeren og datafilene, ikke schema-filene: SHA-256 over UTF-8-teksten med én
@@ -672,12 +672,14 @@ datachaos list-scenarios [--output text|json]
 datachaos describe <scenario> [--output text|json]
 datachaos generate --out DIR [--seed N] [--customers N] [--orders N] [--batches N]
                    [--batch-interval 1d] [--as-of TS] [--format csv|jsonl|both] [--combined]
-datachaos run --config chaos.yml --out DIR [--force]
+                   [--emit-row-ids] [--output text|json]
+datachaos run --config chaos.yml --out DIR [--force] [--output text|json]
 datachaos run --out DIR --scenario NAME --table T [--param key=value ...] [--seed N] ...
 datachaos inject --input DIR --out DIR --scenario NAME --table T [--param key=value ...]
+                 [--output text|json]
 datachaos validate DIR [--reproduce] [--output text|json]
 datachaos report DIR [--output text|json]
-datachaos land DIR --upto-batch K --to LANDING_DIR
+datachaos land DIR --upto-batch K --to LANDING_DIR [--output text|json]
 datachaos check-dbt --run DIR --run-results PATH --config chaos.yml [--output text|json]
 ```
 
@@ -686,16 +688,31 @@ datachaos check-dbt --run DIR --run-results PATH --config chaos.yml [--output te
 - Flere scenarioer i én kjøring går via config-fila. CLI-varianten av `run` tar ett scenario.
   (ChatGPT-planen viste `--scenario` gjentatt uten måte å gi parametere per scenario.)
 - `--param key=value`: verdi parses som YAML-skalar (`0.02`, `true`, `[a,b]`, `"3d"`).
-- `inject` leser en DataChaos-output-mappe (bruker manifest og schema-filer), legger til
-  scenarioet sist og skriver et nytt manifest der det forrige er innebygd.
-- `validate`: sjekker SHA-256 for alle filer, at hver ledger-linje er observerbar i data
-  (nøkkel finnes i angitt batch, verdi = `after`), og scenarioenes invarianter på data lest
-  fra disk. `--reproduce` kjører configen fra manifestet på nytt i en temp-mappe og krever
-  lik `content_sha256`. Exit 1 ved avvik.
-- `report`: menneskelesbar oppsummering per scenario med antall og 5 eksempel-nøkler.
-- `land`: kopierer `batch_0000 … batch_K` for alle tabeller til en landing-mappe
-  (`LANDING/<table>/batch_XXXX.csv`). Brukes av dbt-eksemplet for å simulere inkrementell
-  ankomst.
+- `inject` leser ikke datafilene, siden `rid` ikke ligger på disk. Den sjekker filene mot manifestet,
+  regenererer fra configen i manifestet og krever samme `content_sha256` (ellers exit 2, f.eks. annen
+  DataChaos-versjon). Så legges scenarioet til sist og alt skrives til ny mappe. `run.based_on` i det
+  nye manifestet har `run_id` og `content_sha256` for runen det bygger på.
+- `validate` uten flagg sjekker bare det som kan avgjøres fra disk, og melder aldri en feil den ikke
+  kan bevise (exit 1 bare ved beviselig avvik):
+  - Hasher: alle filer i `files` stemmer, ingen ekstra filer, og `content_sha256` stemmer.
+  - Kolonner og rader: header og verdier følger schema-fila for batchen, `rows` stemmer, og
+    `ingested_at` faller i batchen.
+  - `schema_change`-linjer mot schema-filene.
+  - Ledger: bare siste linje per tabell, rad og kolonne teller, i radens endelige batch (`batch` på
+    siste linje for raden). Tidligere linjer telles som `superseded`.
+  - Uten `_chaos_rid` sjekkes linjene via nøkkelen. Er nøkkelen tvetydig (flere rader med samme nøkkel
+    eller NULL-nøkkel, eller en `delete_row` der en senere linje har satt inn samme nøkkel), telles
+    linjen som `unverifiable`, med advarsel og exit 0. Det samme gjelder hvis en fil linjen avhenger
+    av ikke kan leses. Med `_chaos_rid` sjekkes alt eksakt.
+- `validate --reproduce` kjører i tillegg configen fra manifestet på nytt i en temp-mappe, som sjekker
+  scenarioenes invarianter, og krever like `files` og lik `content_sha256`. Exit 1 ved avvik.
+- `report`: menneskelesbar oppsummering per scenario med antall linjer per `action` og 5
+  eksempel-nøkler. Leser bare manifest og ledger og sjekker ingenting.
+- `land`: kopierer `batch_0000 … batch_K` for alle tabeller til `LANDING/<table>/batch_XXXX.csv`, og
+  schema-filene til `LANDING/schemas/<table>/batch_XXXX.json`. Sletter og overskriver aldri: lik fil
+  hoppes over, ulik fil gir exit 2 før noe kopieres, og kildefiler som ikke stemmer med manifestet gir
+  exit 2. Gjentatte kall med økende `--upto-batch` virker. Brukes av dbt-eksemplet for å simulere
+  inkrementell ankomst.
 
 ## 11. Konfig og `check-dbt`
 

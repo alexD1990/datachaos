@@ -410,6 +410,15 @@ def test_a_nulled_key_is_unverifiable(tmp_path: Path) -> None:
     assert result.ledger.unverifiable == 2
 
 
+def test_a_single_nulled_key_is_also_unverifiable(tmp_path: Path) -> None:
+    out = _run(tmp_path, _null(column="order_id", count=1, allow_key=True))
+    result = validate_dir(out)
+    assert result.ok
+    assert result.ledger.unverifiable == 1
+    assert result.ledger.verified == 0
+    assert result.warnings
+
+
 def test_a_nulled_key_with_no_null_row_at_all_is_exit_1(tmp_path: Path) -> None:
     out = _run(tmp_path, _null(column="order_id", count=1, allow_key=True))
     line = _ledger(out)[0]
