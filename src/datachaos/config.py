@@ -228,6 +228,16 @@ def parse_param(text: str) -> tuple[str, object]:
         raise DataChaosError(f"--param {name}: invalid value {value!r}") from exc
 
 
+def parse_params(texts: list[str]) -> dict[str, object]:
+    params: dict[str, object] = {}
+    for text in texts:
+        name, value = parse_param(text)
+        if name in params:
+            raise DataChaosError(f"--param: {name} is given more than once")
+        params[name] = value
+    return params
+
+
 def _parse_dataset(data: object) -> DatasetConfig:
     section = _mapping(
         data,

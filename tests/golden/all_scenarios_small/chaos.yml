@@ -1,0 +1,24 @@
+version: 1
+seed: 20260105
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 20
+  orders: 50
+  batches: 3
+  batch_interval: 1d
+output:
+  formats: [csv, jsonl]
+  combined: true
+scenarios:
+  - name: duplicate-business-key
+    table: orders
+    params: {rate: 0.1}
+  - name: null-critical-column
+    table: orders
+    params: {column: customer_id, rate: 0.1}
+  - name: invalid-enum
+    table: orders
+    params: {column: status, count: 3}
+expectations:
+  - scenario: duplicate-business-key
+    failing_tests: ["test.dbt_shop.assert_raw_orders_unique_per_version*"]

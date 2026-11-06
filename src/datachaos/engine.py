@@ -37,9 +37,11 @@ from datachaos.scenarios.base import (
     ResolvedParams,
     Scenario,
     ScenarioContext,
+    ScenarioSpec,
     did_you_mean,
     key_of,
 )
+from datachaos.scenarios.catalog import render_markdown, render_text, spec_to_dict
 from datachaos.timeutil import (
     batch_index,
     parse_duration,
@@ -206,6 +208,32 @@ def _eligibility(
 
 def _key_identity(key: Mapping[str, Value]) -> tuple[tuple[str, Value], ...]:
     return tuple(sorted(key.items(), key=lambda item: item[0]))
+
+
+def scenario_list() -> list[dict[str, object]]:
+    return [spec_to_dict(spec) for spec in _specs()]
+
+
+def scenario_details(name: str) -> dict[str, object]:
+    return spec_to_dict(_spec(name))
+
+
+def scenario_text(name: str) -> str:
+    return render_text(_spec(name))
+
+
+def scenarios_markdown() -> str:
+    return render_markdown(_specs())
+
+
+def _specs() -> list[ScenarioSpec]:
+    return [SCENARIOS[name].spec for name in sorted(SCENARIOS)]
+
+
+def _spec(name: str) -> ScenarioSpec:
+    if name not in SCENARIOS:
+        raise DataChaosError(f"unknown scenario {name!r}{did_you_mean(name, SCENARIOS)}")
+    return SCENARIOS[name].spec
 
 
 def compute_run_id(config: RunConfig) -> str:

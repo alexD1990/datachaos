@@ -18,11 +18,15 @@ All notable changes to this project are documented in this file. The format is b
 - Output is written through a temp directory and renamed into place. Missing parent directories
   are created; a non-empty output directory or a temp directory left by an earlier run is an
   error, and nothing is deleted.
-- `datachaos.run()`, which runs a YAML config. Every scenario is validated before any runs, each
-  against the schema state the earlier ones leave behind, and a scenario's invariant is checked
-  right after it runs. All changes go to `chaos-ledger.jsonl`.
-- Scenarios `duplicate-business-key`, `null-critical-column` and `invalid-enum`. The manifest warns when NULL is
-  written to a column the schema says is not nullable.
+- `datachaos run`, with a YAML config or one `--scenario`, and `datachaos.run()`. `--force` replaces
+  earlier output, but only when its manifest lists every file in the directory.
+- `datachaos list-scenarios` and `datachaos describe`, with `--output json`, and
+  `docs/scenarios.md` generated from the same specs.
+- Running a scenario: every scenario is validated before any runs, each against the schema state
+  the earlier ones leave behind, and a scenario's invariant is checked right after it runs. All
+  changes go to `chaos-ledger.jsonl`.
+- Scenarios `duplicate-business-key`, `null-critical-column` and `invalid-enum`. The manifest warns
+  when NULL is written to a column the schema says is not nullable.
 
 ### Changed
 - CI also runs on macOS and Windows with Python 3.12.

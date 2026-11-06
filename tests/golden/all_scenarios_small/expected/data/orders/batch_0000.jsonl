@@ -1,0 +1,2 @@
+{"order_id":"O000027","customer_id":"C000011","order_timestamp":"2026-01-05T10:34:37Z","updated_at":"2026-01-05T10:34:37Z","status":"created","amount":"10923.21","currency":"SEK","source_system":"b2b_api","ingested_at":"2026-01-05T10:51:08Z"}
+{"order_id":"O000022","customer_id":null,"order_timestamp":"2026-01-05T22:34:46Z","updated_at":"2026-01-05T22:34:46Z","status":"created","amount":"17235.33","currency":"NOK","source_system":"webshop","ingested_at":"2026-01-05T22:44:48Z"}

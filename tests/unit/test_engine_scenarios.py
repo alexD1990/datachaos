@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
@@ -16,6 +17,7 @@ from datachaos.io.reader import read_json
 from datachaos.model.ledger import LedgerEntry
 from datachaos.model.schema import TableSchema
 from datachaos.model.table import Row
+from datachaos.rng import derive_seed
 from datachaos.scenarios import SCENARIOS
 from datachaos.scenarios.base import (
     COMMON_PARAMS,
@@ -149,6 +151,16 @@ class Broken(Touch):
         return ["the invariant does not hold"]
 
 
+class Unsorted(Touch):
+    """Hands its ledger lines over in reverse, so that only the engine can sort them."""
+
+    spec = _spec("unsorted")
+
+    def apply(self, ctx: ScenarioContext) -> ScenarioOutcome:
+        outcome = super().apply(ctx)
+        return replace(outcome, ledger=tuple(reversed(outcome.ledger)))
+
+
 class Selfish(Touch):
     spec = _spec("selfish")
 
@@ -158,7 +170,7 @@ class Selfish(Touch):
 
 @pytest.fixture(autouse=True)
 def _registry(monkeypatch: pytest.MonkeyPatch) -> None:
-    for scenario in (Touch(), Rename(), NeedsColumn(), Broken(), Selfish()):
+    for scenario in (Touch(), Rename(), NeedsColumn(), Broken(), Selfish(), Unsorted()):
         monkeypatch.setitem(SCENARIOS, scenario.spec.name, scenario)
 
 
@@ -359,6 +371,24 @@ def test_ledger_is_sorted(tmp_path: Path) -> None:
     assert prefix[:5] == sorted(prefix[:5])
     assert prefix[5:] == sorted(prefix[5:])
     assert all('"scenario_index":0' in entry for entry in entries[:5])
+
+
+def test_engine_sorts_the_ledger_whatever_order_a_scenario_uses(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    config = _config(ScenarioConfig("unsorted", "orders", {"count": 5}), _touch(count=5))
+    engine.run(config, out)
+    entries = [json.loads(line) for line in _ledger(out).splitlines()]
+    keys = [(entry["scenario_index"], entry["table"], entry["rid"]) for entry in entries]
+    assert keys == sorted(keys)
+    assert [entry["scenario_index"] for entry in entries] == [0] * 5 + [1] * 5
+
+
+def test_each_scenario_has_a_seed_of_its_own_from_its_index_and_name(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    engine.run(_config(_touch(count=5), _touch(count=5)), out)
+    seeds = [record["seed"] for record in read_json(out / "chaos-manifest.json")["scenarios"]]
+    assert seeds == [derive_seed(5, "scenario:0:touch"), derive_seed(5, "scenario:1:touch")]
+    assert seeds[0] != seeds[1]
 
 
 def test_later_data_is_unchanged_when_a_scenario_is_added_at_the_end(tmp_path: Path) -> None:

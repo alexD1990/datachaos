@@ -406,24 +406,32 @@ inkrementelle modeller. Alle har `rate`/`count` og `allow_overlap` i tillegg til
   `true`; `false` legger kopien i en senere batch).
 - **Transformasjon:** for hver valgt rad, legg til en ny rad med samme nøkkel. Med
   `mutate_non_key` endres én ikke-nøkkel-, ikke-tidskolonne til en annen gyldig verdi.
-  `ingested_at` for kopien: samme som original (+1 s) eller, med `same_batch: false`,
-  i en tilfeldig senere batch.
-- **Invariant:** hver valgt nøkkel forekommer nøyaktig 2 ganger; ingen originalrad endret;
-  `rows_after == rows_before + n`.
+  `ingested_at` for kopien: som originalen +1 s, men uendret hvis +1 s ville krysset batchgrensen
+  eller `as_of`. Med `same_batch: false`: i en tilfeldig senere batch, og rader i siste batch er
+  ikke kandidater (`batches: 1` er valideringsfeil). `mutate_non_key` velger blant ENUM- og
+  ATTRIBUTE-kolonner, ikke FK, og ledgeren viser `column`, `before` og `after` på `insert_row`.
+- **`key_columns`:** må identifisere radene unikt i baseline, ellers feil ved oppstart.
+- **Invariant:** hver valgt nøkkel forekommer nøyaktig 2 ganger (med `allow_overlap`: antallet før
+  pluss antall kopier); ingen originalrad endret; `rows_after == rows_before + n`.
 
 ### 8.2 `null-critical-column`
 
 - **Avslører:** manglende `not_null`, joins som mister rader på NULL. **dbt-test:** `not_null`.
-- **Parametere:** `column` (påkrevd). Rolle KEY er avvist med mindre `allow_key: true`.
+- **Parametere:** `column` (påkrevd). Rolle KEY er avvist med mindre `allow_key: true`. Rolle
+  INGESTION_TIME er alltid avvist, fordi batch utledes fra den. Rader som allerede er NULL er ikke
+  kandidater. Ledgerens `key` viser den opprinnelige verdien.
 - **Transformasjon:** sett verdien til NULL. Kolonnen trenger ikke være nullable i schemaet;
-  poenget er nettopp å bryte det. Manifestet registrerer at kontrakten er brutt.
+  poenget er nettopp å bryte det. Manifestet registrerer at kontrakten er brutt, i `warnings`.
 - **Invariant:** antall NULL i kolonnen øker med `n`; alle andre verdier på berørte rader uendret.
 
 ### 8.3 `invalid-enum`
 
 - **Avslører:** ukjente kategorier som faller ut i `CASE`/mapping. **dbt-test:** `accepted_values`.
 - **Parametere:** `column` (må ha rolle ENUM), `values` (liste, standard `["UNKNOWN"]`),
-  `variant` (`literal` | `case_change` | `whitespace`; `case_change` gir `PAID`, `whitespace` gir `"paid "`).
+  `variant` (`literal` | `case_change` | `whitespace`; `case_change` gir `PAID`, og `no` for en verdi
+  som allerede er store bokstaver; `whitespace` gir `"paid "`). `values` er bare lov med `literal`,
+  og kan ikke inneholde tom streng (NULL i CSV) eller gyldige verdier. Bare rader med gyldig verdi
+  er kandidater.
 - **Invariant:** berørte verdier ∉ `allowed_values`; ingen andre kolonner endret.
 
 ### 8.4 `orphaned-foreign-key`
