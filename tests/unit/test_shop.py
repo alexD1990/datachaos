@@ -5,7 +5,14 @@ from collections import defaultdict
 
 import pytest
 
-from datachaos.datasets.shop import _EVENT_GAP_MAX, _INGEST_DELAY_MAX, _LIFECYCLES, build_shop
+from datachaos.config import MAX_ROWS
+from datachaos.datasets.shop import (
+    _EVENT_GAP_MAX,
+    _INGEST_DELAY_MAX,
+    _LIFECYCLES,
+    _event_ids,
+    build_shop,
+)
 from datachaos.engine import partition
 from datachaos.model.dataset import Dataset
 from datachaos.model.schema import ColumnType, Role
@@ -200,6 +207,22 @@ def test_a_tight_window_cuts_down_to_one_event_and_a_wide_one_reaches_five() -> 
     )
     assert min(len(rows) for rows in _events_by_order(tight).values()) == 1
     assert max(len(rows) for rows in _events_by_order(wide).values()) == 5
+
+
+def test_event_ids_above_999999_keep_fixed_width_and_sort_numerically() -> None:
+    largest = MAX_ROWS * max(len(lifecycle) for lifecycle in _LIFECYCLES)
+    numbers = [1, 999_999, 1_000_000, largest]
+    ids = [_event_ids(number) for number in numbers]
+    assert ids[2] == ("e1000000", "E1000000")
+    assert all(len(rid) == 8 and len(event_id) == 8 for rid, event_id in ids)
+    assert [rid for rid, _ in ids] == sorted(rid for rid, _ in ids)
+    assert [event_id for _, event_id in ids] == sorted(event_id for _, event_id in ids)
+
+
+def test_generated_events_use_the_fixed_width_ids(dataset: Dataset) -> None:
+    rows = sorted(_rows(dataset, "order_events"), key=lambda row: row.rid)
+    for number, row in enumerate(rows, 1):
+        assert (row.rid, row.values["event_id"]) == _event_ids(number)
 
 
 def test_seeds_are_per_purpose() -> None:

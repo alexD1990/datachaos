@@ -46,7 +46,8 @@ verktøyet verdt å bruke, så det er med i MVP.
 |---|---|
 | Pakking | `src/`-layout, hatchling (som dataowl), MIT-lisens, `py.typed` |
 | Kvalitet | ruff (samme regelsett som dataowl: `E,F,I,UP,B,SIM`, linjelengde 100, `from __future__ import annotations` påkrevd), mypy strict-ish (kopier `[tool.mypy]` fra dataowl), pytest |
-| CI | GitHub Actions, Python 3.10–3.13, `ruff check`, `ruff format --check`, `mypy`, `pytest` |
+| CI | GitHub Actions: Ubuntu med Python 3.10–3.13, pluss macOS og Windows med Python 3.12. `ruff check`, `ruff format --check`, `mypy`, `pytest` |
+| Filer | Tekstfiler åpnes alltid med `encoding="utf-8", newline=""` (testes). Binærmodus brukes bare til å hashe filer, slik at en ødelagt fil gir feil hash og ikke dekodingsfeil |
 | Maskinlesbar output | Hvert JSON-dokument har `schema_version` og `tool_version`. Minor-bump legger bare til felter |
 | Exit codes | `0` OK · `1` kjøringen fullførte, men validering/forventning feilet · `2` bruks-, konfig-, IO- eller verktøyfeil |
 | Stdout/stderr | Resultat til stdout, status og advarsler til stderr. Med `--output json` er stdout kun JSON |
@@ -172,7 +173,7 @@ class Row:
     values: Mapping[str, Value]
 ```
 
-- `rid` gis ved generering (`c000001`, `o000001`, `e000001`) og for nye rader fra scenario
+- `rid` gis ved generering (`c000001`, `o000001`, `e0000001`) og for nye rader fra scenario
   `i`: `s{i}-{n}`. Den brukes i ledgeren og til eksklusivitet (§ 7.3).
 - Immutable: scenarioer returnerer ny `Table`. En test sjekker at input-`Dataset` er uendret
   (sammenlign `hash` av en dyp kopi før og etter).
@@ -214,7 +215,7 @@ Ett datasett med tre tabeller som henger sammen, ikke separate `--dataset orders
 
 | Kolonne | Type | Rolle | Merknad |
 |---|---|---|---|
-| event_id | STRING | KEY | `E000001` … |
+| event_id | STRING | KEY | `E0000001` … (7 sifre: opptil 5 events for hver av 899 999 ordrer) |
 | order_id | STRING | FOREIGN_KEY → orders.order_id | |
 | event_type | STRING | ENUM | created, paid, shipped, delivered, cancelled |
 | event_time | TIMESTAMP | EVENT_TIME | strengt økende per ordre; første event er `created` med `event_time = order_timestamp` |
@@ -505,6 +506,9 @@ inkrementelle modeller. Alle har `rate`/`count` og `allow_overlap` i tillegg til
   data/<table>.csv                   # kun med --combined og når alle batcher har samme schema
 ```
 
+Hver batch får alltid sine filer. En batch uten rader gir en CSV med bare header og en tom
+JSONL-fil. `chaos-ledger.jsonl` finnes alltid, og er tom når ingen scenarioer har kjørt.
+
 CSV, fast definert (dette er en del av determinisme-kontrakten):
 
 - UTF-8 uten BOM, `\n`, header, `csv.writer(quoting=QUOTE_MINIMAL, lineterminator="\n")`.
@@ -518,7 +522,13 @@ JSONL: ett objekt per linje, nøkler i schema-rekkefølge,
 `json.dumps(obj, ensure_ascii=False, separators=(",", ":"))`, NULL som `null`, DECIMAL og
 tider som strenger.
 
-Schema-fil per batch: `{"schema_version":"1.0","table":…,"batch":…,"columns":[{name,type,nullable,role,…}]}`.
+Schema-fil per batch:
+`{"schema_version":"1.0","tool_version":…,"table":…,"kind":…,"batch":…,"columns":[{name,type,nullable,role,…}]}`.
+`kind` trengs for å lese schemaet tilbake. Kolonnefeltene `references`, `allowed_values` og `scale`
+skrives bare når de er satt.
+
+Med `--emit-row-ids` står `_chaos_rid` som siste kolonne i både datafilene og schema-filene, slik
+at de alltid stemmer overens.
 
 ### 9.2 Manifest (`chaos-manifest.json`, schema 1.0)
 
@@ -554,8 +564,12 @@ mønster som `dgt`). `jsonschema` er dev-avhengighet.
 
 - Output-mappen må ikke finnes, eller være tom. `--force` er bare lov hvis mappen inneholder
   et `chaos-manifest.json` fra før (hindrer at noen sletter en vilkårlig mappe).
+- Manglende foreldermapper opprettes (`mkdir -p`).
 - Skriv til `<out>.tmp-<run_id>` i samme foreldermappe, rename til slutt. Ved feil fjernes
-  temp-mappen. Ingenting skrives utenfor output-mappen.
+  temp-mappen. Ingenting skrives utenfor output-mappen, bortsett fra temp-mappen og
+  foreldermappene over.
+- En temp-mappe fra en tidligere kjøring gir exit 2 og slettes ikke. Vi sletter bare det denne
+  kjøringen selv har opprettet.
 - `inject` (§ 10) leser fra én mappe og skriver alltid til en ny.
 
 ## 10. CLI

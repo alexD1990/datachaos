@@ -215,12 +215,12 @@ def _events(rng: Rng, orders: list[_Order], as_of: int) -> list[Row]:
         for event_type, event_time, ingested_at in timeline:
             if ingested_at >= as_of:
                 break
-            number = len(rows) + 1
+            rid, event_id = _event_ids(len(rows) + 1)
             rows.append(
                 Row(
-                    rid=f"e{number:06d}",
+                    rid=rid,
                     values={
-                        "event_id": f"E{number:06d}",
+                        "event_id": event_id,
                         "order_id": order.order_id,
                         "event_type": event_type,
                         "event_time": format_timestamp(event_time),
@@ -229,6 +229,11 @@ def _events(rng: Rng, orders: list[_Order], as_of: int) -> list[Row]:
                 )
             )
     return rows
+
+
+def _event_ids(number: int) -> tuple[str, str]:
+    """The rid and event_id. Seven digits hold 5 events for each of the 899 999 possible orders."""
+    return f"e{number:07d}", f"E{number:07d}"
 
 
 def _table(schema: TableSchema, batches: int, rows: list[Row]) -> Table:
