@@ -38,6 +38,7 @@ def test_manifest_validates_against_the_schema(tmp_path: Path) -> None:
     assert document["schema_version"] == "1.0"
     assert document["tool_version"] == __version__
     assert document["run"]["seed"] == 42
+    assert document["dataset"]["generator_version"] == 2
     assert document["run"]["config"] == RunConfig(dataset=SMALL).to_dict()
     assert document["scenarios"] == []
     assert document["warnings"] == []

@@ -24,9 +24,12 @@ All notable changes to this project are documented in this file. The format is b
   `docs/scenarios.md` generated from the same specs.
 - Running a scenario: every scenario is validated before any runs, each against the schema state
   the earlier ones leave behind, and a scenario's invariant is checked right after it runs. All
-  changes go to `chaos-ledger.jsonl`.
-- Scenarios `duplicate-business-key`, `null-critical-column` and `invalid-enum`. The manifest warns
-  when NULL is written to a column the schema says is not nullable.
+  changes go to `chaos-ledger.jsonl`. A scenario does not select rows whose key or group an earlier
+  one has touched, unless `allow_overlap` is set.
+- Scenarios `duplicate-business-key`, `null-critical-column`, `invalid-enum`,
+  `orphaned-foreign-key`, `late-arriving-data`, `out-of-order-events` and `historical-update`. The manifest warns when NULL is written to a column the schema says is not nullable.
 
 ### Changed
+- Orders are spread evenly over the time window, instead of piling up towards the end. Generator
+  version 2 therefore gives other data than version 1. Late customers can be without orders.
 - CI also runs on macOS and Windows with Python 3.12.

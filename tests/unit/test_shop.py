@@ -225,6 +225,34 @@ def test_generated_events_use_the_fixed_width_ids(dataset: Dataset) -> None:
         assert (row.rid, row.values["event_id"]) == _event_ids(number)
 
 
+def test_orders_are_spread_evenly_over_the_batches() -> None:
+    dataset = build_shop(
+        as_of=AS_OF, seed=1, customers=200, orders=7000, batches=7, batch_interval="1d"
+    )
+    sizes = [len(batch.rows) for batch in partition(dataset.tables["orders"], dataset)]
+    assert all(800 <= size <= 1200 for size in sizes), sizes
+
+
+def test_the_first_customer_exists_from_the_start_of_the_window(dataset: Dataset) -> None:
+    start = window_start(
+        parse_timestamp(dataset.as_of), dataset.batches, parse_duration(dataset.batch_interval)
+    )
+    first = next(row for row in _rows(dataset, "customers") if row.rid == "c000001")
+    assert _time(first, "created_at") == start
+
+
+def test_an_order_chooses_among_all_customers_that_exist_by_then() -> None:
+    dataset = build_shop(
+        as_of=AS_OF, seed=1, customers=50, orders=5000, batches=7, batch_interval="1d"
+    )
+    assert {row.values["customer_id"] for row in _rows(dataset, "orders")} > {"C000001"}
+    late = [
+        row for row in _rows(dataset, "orders") if str(row.values["order_timestamp"]) > "2026-01-07"
+    ]
+    ids = {row.values["customer_id"] for row in late}
+    assert len(ids) > 25
+
+
 def test_seeds_are_per_purpose() -> None:
     base = {"as_of": AS_OF, "seed": 5, "customers": 20, "batches": 3, "batch_interval": "1d"}
     fewer = build_shop(orders=10, **base)  # type: ignore[arg-type]

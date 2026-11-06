@@ -52,6 +52,7 @@ def context(
         rng=Rng(derive_seed(5, name)),
         index=0,
         eligible=lambda row: True,
+        eligible_in=lambda table: lambda row: True,
     )
 
 

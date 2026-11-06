@@ -1,0 +1,206 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "0.1.0",
+  "run": {
+    "run_id": "2e3ad0faabb16aff",
+    "created_at": "2000-01-01T00:00:00Z",
+    "seed": 20260107,
+    "config": {
+      "version": 1,
+      "seed": 20260107,
+      "dataset": {
+        "name": "shop",
+        "as_of": "2026-01-08T00:00:00Z",
+        "customers": 20,
+        "orders": 50,
+        "batches": 3,
+        "batch_interval": "1d"
+      },
+      "output": {
+        "formats": [
+          "csv"
+        ],
+        "combined": false,
+        "emit_row_ids": false
+      },
+      "scenarios": [
+        {
+          "name": "late-arriving-data",
+          "table": "orders",
+          "params": {
+            "count": 4,
+            "allow_overlap": false,
+            "delay_min": "6h",
+            "delay_max": "1d"
+          }
+        },
+        {
+          "name": "late-arriving-data",
+          "table": "order_events",
+          "params": {
+            "rate": 0.1,
+            "allow_overlap": false,
+            "delay_min": "1h",
+            "delay_max": "12h"
+          }
+        }
+      ],
+      "expectations": []
+    }
+  },
+  "dataset": {
+    "name": "shop",
+    "generator_version": 2,
+    "as_of": "2026-01-08T00:00:00Z",
+    "batches": 3,
+    "batch_interval": "1d",
+    "tables": {
+      "customers": {
+        "rows_baseline": 20,
+        "rows_final": 20
+      },
+      "orders": {
+        "rows_baseline": 50,
+        "rows_final": 50
+      },
+      "order_events": {
+        "rows_baseline": 157,
+        "rows_final": 157
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "index": 0,
+      "name": "late-arriving-data",
+      "version": 1,
+      "table": "orders",
+      "seed": 6449002134620265302,
+      "params": {
+        "count": 4,
+        "allow_overlap": false,
+        "delay_min": "6h",
+        "delay_max": "1d"
+      },
+      "stats": {
+        "rows_before": 50,
+        "rows_after": 50,
+        "rows_selected": 4,
+        "rows_added": 0,
+        "values_changed": 4
+      },
+      "ledger_entries": 5
+    },
+    {
+      "index": 1,
+      "name": "late-arriving-data",
+      "version": 1,
+      "table": "order_events",
+      "seed": 6524693063121680992,
+      "params": {
+        "rate": 0.1,
+        "allow_overlap": false,
+        "delay_min": "1h",
+        "delay_max": "12h"
+      },
+      "stats": {
+        "rows_before": 157,
+        "rows_after": 157,
+        "rows_selected": 12,
+        "rows_added": 0,
+        "values_changed": 12
+      },
+      "ledger_entries": 15
+    }
+  ],
+  "files": [
+    {
+      "path": "chaos-ledger.jsonl",
+      "sha256": "96b9a85cf1df9293cb3594d8d9ca3e0691f271c3040b913fde0398f53839c21c",
+      "rows": 20
+    },
+    {
+      "path": "data/customers/batch_0000.csv",
+      "sha256": "e8068de7b9828aa8fa849c3e00ee9039d908b83078c4f1aee4882b66bd264de4",
+      "rows": 9
+    },
+    {
+      "path": "data/customers/batch_0001.csv",
+      "sha256": "86d639dc380358f15f0927618c180d033b239191488185828576bfbace79a314",
+      "rows": 6
+    },
+    {
+      "path": "data/customers/batch_0002.csv",
+      "sha256": "5c3c985d274234a2ca4a123f69e13e7b746ee9a6b83622fc4d19f6248257add1",
+      "rows": 5
+    },
+    {
+      "path": "data/order_events/batch_0000.csv",
+      "sha256": "bcc96ff155cd092a52bdf57eabeb9490e8a711cf66912ac00f2ac09ee380f89d",
+      "rows": 44
+    },
+    {
+      "path": "data/order_events/batch_0001.csv",
+      "sha256": "ee40bee8562c97fa4235a0f7562ef04d67760a098f04ac64ea9a6b2b92dc3366",
+      "rows": 45
+    },
+    {
+      "path": "data/order_events/batch_0002.csv",
+      "sha256": "5b5e7aece73ed9aff7c07ae067b59fd0b0c45e70208f20180bd76ab9d7b70976",
+      "rows": 68
+    },
+    {
+      "path": "data/orders/batch_0000.csv",
+      "sha256": "08c288d9c1894942e61eb7b9791f671c42a0217c28afa4dd5f47476d98376ffe",
+      "rows": 19
+    },
+    {
+      "path": "data/orders/batch_0001.csv",
+      "sha256": "893b16692d45d33d991aced8619093d048fbc3e92687f60f75ef491d0a4e1877",
+      "rows": 9
+    },
+    {
+      "path": "data/orders/batch_0002.csv",
+      "sha256": "dd1b5643f72e8f86abcf10fad6d33a423a7c82d376dc0b1438e26faa7b575195",
+      "rows": 22
+    },
+    {
+      "path": "schemas/customers/batch_0000.json",
+      "sha256": "8aa970b4ab867745a892b664389abe7f166a2b3af29c0e2834dafe9236126d05"
+    },
+    {
+      "path": "schemas/customers/batch_0001.json",
+      "sha256": "851d42f87fecefb35e0de6a7293b5e974221b2999a878f843f8017365cc6385a"
+    },
+    {
+      "path": "schemas/customers/batch_0002.json",
+      "sha256": "f141c4bcbb2696fc1d3886aa0cd17e07f082fc8567840a6ff07476eb5f3db4b7"
+    },
+    {
+      "path": "schemas/order_events/batch_0000.json",
+      "sha256": "2da012399316496a79f0f13f6d82a43c24773edbbb0d525137d4ad65ef699c14"
+    },
+    {
+      "path": "schemas/order_events/batch_0001.json",
+      "sha256": "aaf34936788d2fedbc0fb6ad6e23cee732755dc6a6006d0af436ee8c70dc08d0"
+    },
+    {
+      "path": "schemas/order_events/batch_0002.json",
+      "sha256": "144cf4b86e137b182e44e57dac77f2f0bfc5ce96bbf364d7ccca28a45347bc81"
+    },
+    {
+      "path": "schemas/orders/batch_0000.json",
+      "sha256": "502b4a9da5eff94b0f5ec2b8226bce015b989540e3435439529cc701bf25b044"
+    },
+    {
+      "path": "schemas/orders/batch_0001.json",
+      "sha256": "f5ad2a1ccd2bfdda9e2620d27e79685be273b6b057043cf426fa40b91f0de627"
+    },
+    {
+      "path": "schemas/orders/batch_0002.json",
+      "sha256": "10f644789d2987342e0bbd56066af51363c34a5c5bf812adea97250c48b8e10c"
+    }
+  ],
+  "content_sha256": "ed577b5b9d7481f757bb6f171e31a67314a20655b0bc7a8205d09730a47858b3",
+  "warnings": []
+}

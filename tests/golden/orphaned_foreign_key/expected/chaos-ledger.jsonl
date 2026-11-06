@@ -1,0 +1,12 @@
+{"scenario_index":0,"scenario":"orphaned-foreign-key","table":"orders","action":"set_value","rid":"o000008","key":{"order_id":"O000008"},"batch":2,"column":"customer_id","before":"C000010","after":"C975421"}
+{"scenario_index":0,"scenario":"orphaned-foreign-key","table":"orders","action":"set_value","rid":"o000009","key":{"order_id":"O000009"},"batch":1,"column":"customer_id","before":"C000019","after":"C987324"}
+{"scenario_index":0,"scenario":"orphaned-foreign-key","table":"orders","action":"set_value","rid":"o000022","key":{"order_id":"O000022"},"batch":2,"column":"customer_id","before":"C000010","after":"C974377"}
+{"scenario_index":0,"scenario":"orphaned-foreign-key","table":"orders","action":"set_value","rid":"o000027","key":{"order_id":"O000027"},"batch":1,"column":"customer_id","before":"C000001","after":"C927141"}
+{"scenario_index":0,"scenario":"orphaned-foreign-key","table":"orders","action":"set_value","rid":"o000044","key":{"order_id":"O000044"},"batch":1,"column":"customer_id","before":"C000001","after":"C919359"}
+{"scenario_index":1,"scenario":"orphaned-foreign-key","table":"order_events","action":"orphan_row","rid":"e0000135","key":{"event_id":"E0000135"},"batch":2,"column":"order_id","before":"O000043","after":"O000043"}
+{"scenario_index":1,"scenario":"orphaned-foreign-key","table":"order_events","action":"orphan_row","rid":"e0000136","key":{"event_id":"E0000136"},"batch":2,"column":"order_id","before":"O000043","after":"O000043"}
+{"scenario_index":1,"scenario":"orphaned-foreign-key","table":"order_events","action":"orphan_row","rid":"e0000137","key":{"event_id":"E0000137"},"batch":2,"column":"order_id","before":"O000043","after":"O000043"}
+{"scenario_index":1,"scenario":"orphaned-foreign-key","table":"order_events","action":"orphan_row","rid":"e0000138","key":{"event_id":"E0000138"},"batch":2,"column":"order_id","before":"O000043","after":"O000043"}
+{"scenario_index":1,"scenario":"orphaned-foreign-key","table":"order_events","action":"orphan_row","rid":"e0000159","key":{"event_id":"E0000159"},"batch":2,"column":"order_id","before":"O000050","after":"O000050"}
+{"scenario_index":1,"scenario":"orphaned-foreign-key","table":"orders","action":"delete_row","rid":"o000043","key":{"order_id":"O000043"},"batch":2,"column":null,"before":null,"after":null}
+{"scenario_index":1,"scenario":"orphaned-foreign-key","table":"orders","action":"delete_row","rid":"o000050","key":{"order_id":"O000050"},"batch":2,"column":null,"before":null,"after":null}

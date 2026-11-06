@@ -6,16 +6,17 @@ import difflib
 import math
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Protocol, TypeAlias, cast
+from typing import Protocol, TypeAlias, TypeVar, cast
 
 from datachaos.errors import DataChaosError, FieldError
 from datachaos.model.dataset import Dataset
 from datachaos.model.ledger import LedgerEntry
-from datachaos.model.schema import Role, TableSchema
+from datachaos.model.schema import Column, ColumnType, Role, TableSchema
 from datachaos.model.table import Row, Table, Value, sorted_rows
 from datachaos.rng import Rng
 from datachaos.timeutil import batch_index, parse_duration, parse_timestamp, window_start
 
+T = TypeVar("T")
 ParamType: TypeAlias = "type | tuple[type, ...]"
 ResolvedParams: TypeAlias = Mapping[str, object]
 SchemaState: TypeAlias = Mapping[str, tuple[TableSchema, ...]]
@@ -68,6 +69,16 @@ class ScenarioContext:
     rng: Rng
     index: int
     eligible: Callable[[Row], bool]
+    # The same rule for any table, for scenarios that also select from another table.
+    eligible_in: Callable[[str], Callable[[Row], bool]]
+
+
+@dataclass(frozen=True)
+class Group:
+    """Rows that share the values of some columns."""
+
+    key: Mapping[str, Value]
+    rows: tuple[Row, ...]
 
 
 @dataclass(frozen=True)
@@ -77,15 +88,19 @@ class ScenarioStats:
     rows_selected: int
     rows_added: int
     values_changed: int
+    rows_removed: int = 0
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             "rows_before": self.rows_before,
             "rows_after": self.rows_after,
             "rows_selected": self.rows_selected,
             "rows_added": self.rows_added,
             "values_changed": self.values_changed,
         }
+        if self.rows_removed:
+            result["rows_removed"] = self.rows_removed
+        return result
 
 
 @dataclass(frozen=True)
@@ -242,22 +257,63 @@ def select_rows(
     eligible: Callable[[Row], bool],
 ) -> list[Row]:
     """The selected rows, sorted on rid. Candidates are sorted on rid before drawing."""
+    candidates = sorted((row for row in rows if eligible(row)), key=lambda row: row.rid)
+    return _draw(candidates, rng, rate, count, "rows")
+
+
+def _draw(
+    candidates: Sequence[T], rng: Rng, rate: float | None, count: int | None, noun: str
+) -> list[T]:
     if (rate is None) == (count is None):
         raise DataChaosError("give exactly one of rate and count")
-    candidates = sorted((row for row in rows if eligible(row)), key=lambda row: row.rid)
     if rate is not None:
         wanted = math.floor(rate * len(candidates) + 0.5)
         if wanted == 0:
             raise DataChaosError(
-                f"rate {rate} of {len(candidates)} candidate rows selects no rows; use count"
+                f"rate {rate} of {len(candidates)} candidate {noun} selects no {noun}; use count"
             )
     else:
         wanted = cast(int, count)
         if wanted > len(candidates):
             raise DataChaosError(
-                f"count {wanted} is more than the {len(candidates)} candidate rows"
+                f"count {wanted} is more than the {len(candidates)} candidate {noun}"
             )
     return [candidates[index] for index in rng.sample_indices(len(candidates), wanted)]
+
+
+def groups_of(rows: Iterable[Row], columns: Sequence[str]) -> list[Group]:
+    """Groups sorted on their values, with rows sorted on rid. NULL belongs to no group."""
+    members: dict[tuple[Value, ...], list[Row]] = {}
+    for row in rows:
+        values = tuple(row.values.get(column) for column in columns)
+        if all(value is not None for value in values):
+            members.setdefault(values, []).append(row)
+    return [
+        Group(
+            dict(zip(columns, values, strict=True)),
+            tuple(sorted(members[values], key=lambda row: row.rid)),
+        )
+        for values in sorted(members, key=lambda values: tuple(str(value) for value in values))
+    ]
+
+
+def select_groups(
+    rows: Iterable[Row],
+    columns: Sequence[str],
+    params: ResolvedParams,
+    rng: Rng,
+    *,
+    eligible: Callable[[Row], bool],
+    candidate: Callable[[Group], bool] | None = None,
+) -> list[Group]:
+    """Groups selected by rate or count. A group is a candidate only if all its rows are."""
+    candidates = [
+        group
+        for group in groups_of(rows, columns)
+        if all(eligible(row) for row in group.rows) and (candidate is None or candidate(group))
+    ]
+    rate = cast("float | None", params.get("rate"))
+    return _draw(candidates, rng, rate, cast("int | None", params.get("count")), "groups")
 
 
 def select(ctx: ScenarioContext, candidate: Callable[[Row], bool] | None = None) -> list[Row]:
@@ -305,3 +361,23 @@ def with_rows(dataset: Dataset, table: str, rows: Sequence[Row]) -> Dataset:
     current = dataset.tables[table]
     updated = replace(current, rows=sorted_rows(current.schema_by_batch[0], rows))
     return replace(dataset, tables={**dataset.tables, table: updated})
+
+
+def column_named(schema: TableSchema, name: object) -> Column | None:
+    return next((column for column in schema.columns if column.name == name), None)
+
+
+def other_value(column: Column, value: Value, rng: Rng) -> Value:
+    """A valid value of the column that differs from `value`."""
+    if column.role is Role.ENUM:
+        return rng.choice([option for option in column.allowed_values if option != value])
+    if column.type is ColumnType.BOOLEAN:
+        return not value
+    if column.type is ColumnType.INTEGER:
+        return cast(int, value) + rng.between(1, 100)
+    if column.type is ColumnType.DECIMAL:
+        units = int(str(value).replace(".", "")) + rng.between(1, 100)
+        scale = column.scale or 0
+        text = str(units).rjust(scale + 1, "0")
+        return f"{text[:-scale]}.{text[-scale:]}" if scale else text
+    return f"{value}-changed"

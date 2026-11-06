@@ -1,0 +1,15 @@
+version: 1
+seed: 20260106
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 20
+  orders: 50
+  batches: 3
+  batch_interval: 1d
+scenarios:
+  - name: orphaned-foreign-key
+    table: orders
+    params: {count: 5}
+  - name: orphaned-foreign-key
+    table: order_events
+    params: {mode: deleted_parent, count: 2}

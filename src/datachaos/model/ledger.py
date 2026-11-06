@@ -8,7 +8,9 @@ from typing import Literal
 
 from datachaos.model.table import Value
 
-LedgerAction = Literal["insert_row", "delete_row", "set_value", "move_batch", "schema_change"]
+LedgerAction = Literal[
+    "insert_row", "delete_row", "set_value", "move_batch", "orphan_row", "schema_change"
+]
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,8 @@ class LedgerEntry:
     before: Value = None
     after: Value = None
     source_rid: str | None = None
+    # The group a scenario worked on. Later scenarios stay away from all of its rows.
+    group: Mapping[str, Value] | None = None
 
     def to_dict(self) -> dict[str, object]:
         result: dict[str, object] = {
@@ -35,8 +39,10 @@ class LedgerEntry:
         }
         if self.source_rid is not None:
             result["source_rid"] = self.source_rid
+        result["key"] = dict(self.key)
+        if self.group is not None:
+            result["group"] = dict(self.group)
         result.update(
-            key=dict(self.key),
             batch=self.batch,
             column=self.column,
             before=self.before,
