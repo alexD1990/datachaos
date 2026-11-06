@@ -49,7 +49,18 @@ path = "src/datachaos/_version.py"
 packages = ["src/datachaos"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "schema", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
+include = [
+    "src",
+    "tests",
+    "schema",
+    "examples",
+    "docs/scenarios.md",
+    "docs/output-format.md",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "pyproject.toml",
+]
 exclude = [".github"]
 
 [tool.ruff]
