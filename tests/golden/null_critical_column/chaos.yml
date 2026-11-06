@@ -1,0 +1,15 @@
+version: 1
+seed: 20260103
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 20
+  orders: 50
+  batches: 3
+  batch_interval: 1d
+scenarios:
+  - name: null-critical-column
+    table: orders
+    params: {column: customer_id, count: 5}
+  - name: null-critical-column
+    table: customers
+    params: {column: customer_id, count: 2, allow_key: true}

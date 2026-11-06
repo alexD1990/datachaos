@@ -21,7 +21,8 @@ All notable changes to this project are documented in this file. The format is b
 - `datachaos.run()`, which runs a YAML config. Every scenario is validated before any runs, each
   against the schema state the earlier ones leave behind, and a scenario's invariant is checked
   right after it runs. All changes go to `chaos-ledger.jsonl`.
-- Scenario `duplicate-business-key`.
+- Scenarios `duplicate-business-key` and `null-critical-column`. The manifest warns when NULL is
+  written to a column the schema says is not nullable.
 
 ### Changed
 - CI also runs on macOS and Windows with Python 3.12.
