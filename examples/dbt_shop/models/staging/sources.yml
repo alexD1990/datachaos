@@ -1,0 +1,17 @@
+version: 2
+
+# Everything is read as text, so that a value of another type fails in the cast in staging, as it
+# would in a real pipeline, and not when DuckDB detects the types of the file.
+sources:
+  - name: landing
+    schema: main
+    tables:
+      - name: customers
+        meta:
+          external_location: "read_csv('{{ var('landing') }}/customers/*.csv', all_varchar=true, union_by_name=true, filename=true, header=true)"
+      - name: orders
+        meta:
+          external_location: "read_csv('{{ var('landing') }}/orders/*.csv', all_varchar=true, union_by_name=true, filename=true, header=true)"
+      - name: order_events
+        meta:
+          external_location: "read_csv('{{ var('landing') }}/order_events/*.csv', all_varchar=true, union_by_name=true, filename=true, header=true)"

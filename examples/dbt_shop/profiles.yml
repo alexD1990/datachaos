@@ -1,0 +1,8 @@
+dbt_shop:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # Relative by default. The demo gives every config a database of its own.
+      path: "{{ env_var('DATACHAOS_DEMO_DB', 'dbt_shop.duckdb') }}"
+      threads: 1
