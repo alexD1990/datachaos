@@ -9,7 +9,7 @@ from datachaos import engine as _engine
 from datachaos._version import __version__
 from datachaos.model.manifest import Manifest
 
-__all__ = ["Manifest", "__version__", "generate"]
+__all__ = ["Manifest", "__version__", "generate", "run"]
 
 
 def generate(
@@ -41,3 +41,11 @@ def generate(
         output=_config.OutputConfig(formats=formats, combined=combined, emit_row_ids=emit_row_ids),
     )
     return _engine.generate(config, Path(out))
+
+
+def run(config: str | Path, out: str | Path, *, force: bool = False) -> Manifest:
+    """Runs a config file, writing to `out`. With `force`, replaces earlier DataChaos output.
+
+    Raises DataChaosError for an invalid config or when the output cannot be written.
+    """
+    return _engine.run(_config.load_config(Path(config)), Path(out), force=force)

@@ -1,0 +1,3 @@
+order_id,customer_id,order_timestamp,updated_at,status,amount,currency,source_system,ingested_at
+O000027,C000011,2026-01-05T10:34:37Z,2026-01-05T10:34:37Z,created,10923.21,SEK,b2b_api,2026-01-05T10:51:08Z
+O000022,,2026-01-05T22:34:46Z,2026-01-05T22:34:46Z,created,17235.33,NOK,webshop,2026-01-05T22:44:48Z

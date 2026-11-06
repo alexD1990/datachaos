@@ -1,1 +1,2 @@
 tests/golden/** -text
+docs/scenarios.md -text

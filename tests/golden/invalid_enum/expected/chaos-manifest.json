@@ -1,0 +1,243 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "0.1.0",
+  "run": {
+    "run_id": "f470aa474f927de0",
+    "created_at": "2000-01-01T00:00:00Z",
+    "seed": 20260104,
+    "config": {
+      "version": 1,
+      "seed": 20260104,
+      "dataset": {
+        "name": "shop",
+        "as_of": "2026-01-08T00:00:00Z",
+        "customers": 20,
+        "orders": 50,
+        "batches": 3,
+        "batch_interval": "1d"
+      },
+      "output": {
+        "formats": [
+          "csv"
+        ],
+        "combined": false,
+        "emit_row_ids": false
+      },
+      "scenarios": [
+        {
+          "name": "invalid-enum",
+          "table": "orders",
+          "params": {
+            "count": 3,
+            "allow_overlap": false,
+            "column": "status",
+            "values": [
+              "UNKNOWN"
+            ],
+            "variant": "literal"
+          }
+        },
+        {
+          "name": "invalid-enum",
+          "table": "orders",
+          "params": {
+            "count": 3,
+            "allow_overlap": false,
+            "column": "currency",
+            "variant": "case_change"
+          }
+        },
+        {
+          "name": "invalid-enum",
+          "table": "customers",
+          "params": {
+            "count": 2,
+            "allow_overlap": false,
+            "column": "country_code",
+            "variant": "whitespace"
+          }
+        }
+      ],
+      "expectations": []
+    }
+  },
+  "dataset": {
+    "name": "shop",
+    "generator_version": 1,
+    "as_of": "2026-01-08T00:00:00Z",
+    "batches": 3,
+    "batch_interval": "1d",
+    "tables": {
+      "customers": {
+        "rows_baseline": 20,
+        "rows_final": 20
+      },
+      "orders": {
+        "rows_baseline": 50,
+        "rows_final": 50
+      },
+      "order_events": {
+        "rows_baseline": 144,
+        "rows_final": 144
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "index": 0,
+      "name": "invalid-enum",
+      "version": 1,
+      "table": "orders",
+      "seed": 7316610090312017125,
+      "params": {
+        "count": 3,
+        "allow_overlap": false,
+        "column": "status",
+        "values": [
+          "UNKNOWN"
+        ],
+        "variant": "literal"
+      },
+      "stats": {
+        "rows_before": 50,
+        "rows_after": 50,
+        "rows_selected": 3,
+        "rows_added": 0,
+        "values_changed": 3
+      },
+      "ledger_entries": 3
+    },
+    {
+      "index": 1,
+      "name": "invalid-enum",
+      "version": 1,
+      "table": "orders",
+      "seed": 2246728944713382612,
+      "params": {
+        "count": 3,
+        "allow_overlap": false,
+        "column": "currency",
+        "variant": "case_change"
+      },
+      "stats": {
+        "rows_before": 50,
+        "rows_after": 50,
+        "rows_selected": 3,
+        "rows_added": 0,
+        "values_changed": 3
+      },
+      "ledger_entries": 3
+    },
+    {
+      "index": 2,
+      "name": "invalid-enum",
+      "version": 1,
+      "table": "customers",
+      "seed": 18287558115555546600,
+      "params": {
+        "count": 2,
+        "allow_overlap": false,
+        "column": "country_code",
+        "variant": "whitespace"
+      },
+      "stats": {
+        "rows_before": 20,
+        "rows_after": 20,
+        "rows_selected": 2,
+        "rows_added": 0,
+        "values_changed": 2
+      },
+      "ledger_entries": 2
+    }
+  ],
+  "files": [
+    {
+      "path": "chaos-ledger.jsonl",
+      "sha256": "6828ade5b0344f815b039359d0e939193a68e9b04736eb60a0afbdcd27fd0ca7",
+      "rows": 8
+    },
+    {
+      "path": "data/customers/batch_0000.csv",
+      "sha256": "0789e9b0c7b278b88836ff9d9cbc3c6e52442cd8f0c236a78dda476cea007785",
+      "rows": 4
+    },
+    {
+      "path": "data/customers/batch_0001.csv",
+      "sha256": "46945ff69c2aba472112c1b8706e50c46b344adc4c2124a97c51fdf3667126de",
+      "rows": 11
+    },
+    {
+      "path": "data/customers/batch_0002.csv",
+      "sha256": "8a4622685f4dd90036070cbe060dde9e4217d30e628b6e6252d61e5e96382968",
+      "rows": 5
+    },
+    {
+      "path": "data/order_events/batch_0000.csv",
+      "sha256": "b1a65a0bdcd36a79c5467f1cdc84289ec7152d40354eef20600ef98a22fce6e8",
+      "rows": 5
+    },
+    {
+      "path": "data/order_events/batch_0001.csv",
+      "sha256": "effb3a019a18db3cdd1b63992dbcc01b82fa3edb5f5fa4f8509c2cc8585602ef",
+      "rows": 37
+    },
+    {
+      "path": "data/order_events/batch_0002.csv",
+      "sha256": "8e3422cbedc3e52a8028888181ddb7e0d7b300f47ad2681e4ad3583ff0e3d4c5",
+      "rows": 102
+    },
+    {
+      "path": "data/orders/batch_0000.csv",
+      "sha256": "373a4263dbfc04edb13ccfd3a2236aaf8a4296fe76f1b2a744aab6e15f52bb61",
+      "rows": 3
+    },
+    {
+      "path": "data/orders/batch_0001.csv",
+      "sha256": "b2d1c7fe6501272c5523c76ee1efa2a1406452961bc1759c3abe8b5b821a4171",
+      "rows": 13
+    },
+    {
+      "path": "data/orders/batch_0002.csv",
+      "sha256": "4e6189ca0f885f37448ecfca04c844ed4ec39a7baac1bee45df7233edbe52998",
+      "rows": 34
+    },
+    {
+      "path": "schemas/customers/batch_0000.json",
+      "sha256": "8aa970b4ab867745a892b664389abe7f166a2b3af29c0e2834dafe9236126d05"
+    },
+    {
+      "path": "schemas/customers/batch_0001.json",
+      "sha256": "851d42f87fecefb35e0de6a7293b5e974221b2999a878f843f8017365cc6385a"
+    },
+    {
+      "path": "schemas/customers/batch_0002.json",
+      "sha256": "f141c4bcbb2696fc1d3886aa0cd17e07f082fc8567840a6ff07476eb5f3db4b7"
+    },
+    {
+      "path": "schemas/order_events/batch_0000.json",
+      "sha256": "2da012399316496a79f0f13f6d82a43c24773edbbb0d525137d4ad65ef699c14"
+    },
+    {
+      "path": "schemas/order_events/batch_0001.json",
+      "sha256": "aaf34936788d2fedbc0fb6ad6e23cee732755dc6a6006d0af436ee8c70dc08d0"
+    },
+    {
+      "path": "schemas/order_events/batch_0002.json",
+      "sha256": "144cf4b86e137b182e44e57dac77f2f0bfc5ce96bbf364d7ccca28a45347bc81"
+    },
+    {
+      "path": "schemas/orders/batch_0000.json",
+      "sha256": "502b4a9da5eff94b0f5ec2b8226bce015b989540e3435439529cc701bf25b044"
+    },
+    {
+      "path": "schemas/orders/batch_0001.json",
+      "sha256": "f5ad2a1ccd2bfdda9e2620d27e79685be273b6b057043cf426fa40b91f0de627"
+    },
+    {
+      "path": "schemas/orders/batch_0002.json",
+      "sha256": "10f644789d2987342e0bbd56066af51363c34a5c5bf812adea97250c48b8e10c"
+    }
+  ],
+  "content_sha256": "4560dc08ee60d31ec9ec5bc3d932afa8175fe345b883ea7ff18bfa04fb75e2a9",
+  "warnings": []
+}

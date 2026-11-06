@@ -1,0 +1,9 @@
+{"customer_id":"C000002","created_at":"2026-01-07T02:05:31Z","updated_at":"2026-01-07T02:05:31Z","country_code":"NO","customer_segment":"consumer","is_active":false,"ingested_at":"2026-01-07T02:25:04Z"}
+{"customer_id":"C000019","created_at":"2026-01-07T03:30:24Z","updated_at":"2026-01-07T03:30:24Z","country_code":"DK","customer_segment":"enterprise","is_active":true,"ingested_at":"2026-01-07T03:37:13Z"}
+{"customer_id":"C000018","created_at":"2026-01-07T06:42:43Z","updated_at":"2026-01-07T06:42:43Z","country_code":"FI","customer_segment":"consumer","is_active":true,"ingested_at":"2026-01-07T06:45:39Z"}
+{"customer_id":"C000004","created_at":"2026-01-07T11:11:26Z","updated_at":"2026-01-07T11:11:26Z","country_code":"NO","customer_segment":"smb","is_active":true,"ingested_at":"2026-01-07T11:22:54Z"}
+{"customer_id":"C000016","created_at":"2026-01-07T12:25:17Z","updated_at":"2026-01-07T12:25:17Z","country_code":"SE","customer_segment":"smb","is_active":true,"ingested_at":"2026-01-07T12:37:12Z"}
+{"customer_id":"C000006","created_at":"2026-01-07T12:51:18Z","updated_at":"2026-01-07T12:51:18Z","country_code":"DE","customer_segment":"enterprise","is_active":true,"ingested_at":"2026-01-07T12:55:24Z"}
+{"customer_id":"C000005","created_at":"2026-01-07T18:55:25Z","updated_at":"2026-01-07T18:55:25Z","country_code":"SE","customer_segment":"consumer","is_active":true,"ingested_at":"2026-01-07T18:56:59Z"}
+{"customer_id":"C000017","created_at":"2026-01-07T21:28:49Z","updated_at":"2026-01-07T21:28:49Z","country_code":"DK","customer_segment":"smb","is_active":false,"ingested_at":"2026-01-07T21:43:00Z"}
+{"customer_id":"C000020","created_at":"2026-01-07T23:29:27Z","updated_at":"2026-01-07T23:29:27Z","country_code":"DK","customer_segment":"smb","is_active":true,"ingested_at":"2026-01-07T23:55:50Z"}

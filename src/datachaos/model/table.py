@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
-from datachaos.model.schema import TableSchema
+from datachaos.model.schema import Role, TableSchema
 
 # Timestamps, dates and decimals are canonical strings; no floats, so no rounding in output.
 Value = str | int | bool | None
@@ -32,3 +32,9 @@ class Table:
     @property
     def name(self) -> str:
         return self.schema_by_batch[0].name
+
+
+def sorted_rows(schema: TableSchema, rows: Iterable[Row]) -> tuple[Row, ...]:
+    """The stable order of a table. Canonical timestamps sort chronologically as strings."""
+    column = schema.column_with_role(Role.INGESTION_TIME).name
+    return tuple(sorted(rows, key=lambda row: (str(row.values[column]), row.rid)))

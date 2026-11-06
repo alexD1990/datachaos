@@ -4,8 +4,8 @@ DataChaos will generate a synthetic, deterministic dataset delivered in batches,
 controlled data quality faults, keep a ledger of exactly what changed, and check whether your
 pipeline's dbt tests caught the faults.
 
-**Status:** early development. The clean baseline dataset can be generated; injecting faults and
-checking dbt results are not implemented yet.
+**Status:** early development. The clean baseline dataset can be generated and three of the eight
+planned scenarios can inject faults; checking dbt results is not implemented yet.
 
 ## Install
 
@@ -69,11 +69,78 @@ shop/
 The same version and settings give byte-identical data files, ledger and manifest, except for
 `run.created_at` in the manifest.
 
+## Inject faults
+
+```console
+$ datachaos list-scenarios
+duplicate-business-key  Adds a second row with the same business key.
+invalid-enum            Replaces a category with a value outside the allowed values.
+null-critical-column    Sets a column to NULL, whether or not the schema allows it.
+```
+
+`datachaos describe <scenario>` shows what a scenario detects and its parameters, and
+[docs/scenarios.md](docs/scenarios.md) lists them all.
+
+Several scenarios go in a config file, `chaos.yml`:
+
+```yaml
+version: 1
+seed: 42
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 100
+  orders: 1000
+  batches: 7
+  batch_interval: 1d
+scenarios:
+  - name: duplicate-business-key
+    table: orders
+    params: {rate: 0.02}
+  - name: null-critical-column
+    table: orders
+    params: {column: customer_id, count: 10}
+  - name: invalid-enum
+    table: orders
+    params: {column: currency, rate: 0.01, variant: case_change}
+```
+
+```console
+$ datachaos run --config chaos.yml --out chaos
+wrote chaos (run e31a5622bdf493fe)
+  customers: 100 rows
+  orders: 1020 rows
+  order_events: 2936 rows
+  scenario 0: duplicate-business-key on orders, 20 ledger lines
+  scenario 1: null-critical-column on orders, 10 ledger lines
+  scenario 2: invalid-enum on orders, 10 ledger lines
+datachaos: warning: scenarios[1]: orders.customer_id is not nullable in the schema, but 10 rows now hold NULL
+```
+
+`--out` is always required. One scenario can also be given directly:
+
+```bash
+datachaos run --out chaos --scenario invalid-enum --table orders --param column=status --param count=5
+```
+
+`chaos-ledger.jsonl` holds one line per change:
+
+```text
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000001","source_rid":"o000181","key":{"order_id":"O000181"},"batch":5,"column":null,"before":null,"after":null}
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000002","source_rid":"o000190","key":{"order_id":"O000190"},"batch":2,"column":null,"before":null,"after":null}
+```
+
+- By default a scenario does not select a row whose key an earlier scenario has touched.
+  `allow_overlap: true` turns that off.
+- Everything is validated before any scenario runs, and all scenarios run before anything is
+  written, so an error leaves no output.
+- `--force` replaces earlier output, but only if its manifest lists every file in the directory.
+
 ## Development
 
 ```bash
 ruff check && ruff format --check && mypy && pytest
 DATACHAOS_UPDATE_GOLDEN=1 pytest tests/golden   # only when a change in output is intended
+python -m datachaos._docs                       # regenerate docs/scenarios.md
 ```
 
 ## License

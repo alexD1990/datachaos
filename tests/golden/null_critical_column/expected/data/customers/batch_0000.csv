@@ -1,0 +1,4 @@
+customer_id,created_at,updated_at,country_code,customer_segment,is_active,ingested_at
+C000020,2026-01-05T06:42:17Z,2026-01-05T06:42:17Z,NO,consumer,true,2026-01-05T07:08:27Z
+C000014,2026-01-05T08:44:50Z,2026-01-05T08:44:50Z,FI,consumer,true,2026-01-05T08:57:30Z
+,2026-01-05T23:18:40Z,2026-01-05T23:18:40Z,NO,smb,true,2026-01-05T23:22:14Z

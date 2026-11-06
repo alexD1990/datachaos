@@ -174,7 +174,7 @@ class Row:
 ```
 
 - `rid` gis ved generering (`c000001`, `o000001`, `e0000001`) og for nye rader fra scenario
-  `i`: `s{i}-{n}`. Den brukes i ledgeren og til eksklusivitet (§ 7.3).
+  `i`: `s{i:04d}-{n:07d}` (`s0000-0000001`). Fast bredde gjør at sortering på `rid` er numerisk. Den brukes i ledgeren og til eksklusivitet (§ 7.3).
 - Immutable: scenarioer returnerer ny `Table`. En test sjekker at input-`Dataset` er uendret
   (sammenlign `hash` av en dyp kopi før og etter).
 - Rekkefølge i output: sortert på `(batch, ingestion_time, rid)`. Fysisk radrekkefølge har
@@ -313,9 +313,15 @@ class ScenarioSpec:
 
 class Scenario(Protocol):
     spec: ScenarioSpec
-    def resolve(self, table: Table, params: Mapping[str, object]) -> ResolvedParams: ...
+    def resolve(self, ctx: ResolveContext, table: str, params: Mapping[str, object]) -> ResolvedParams: ...
+    def schemas_after(self, ctx: ResolveContext, table: str, params: ResolvedParams) -> SchemaState: ...
     def apply(self, ctx: ScenarioContext) -> ScenarioOutcome: ...
-    def check(self, before: Dataset, after: Dataset, outcome: ScenarioOutcome) -> list[str]: ...
+    def check(self, ctx: ScenarioContext, outcome: ScenarioOutcome) -> list[str]: ...
+
+@dataclass(frozen=True)
+class ResolveContext:
+    dataset: Dataset      # baseline
+    schemas: SchemaState  # {tabell: schema per batch} etter alle tidligere scenarioer
 
 @dataclass(frozen=True)
 class ScenarioContext:
@@ -334,9 +340,15 @@ class ScenarioOutcome:
 ```
 
 - `resolve` fyller inn standardverdier fra roller og validerer alle parametere **før** noe
-  scenario kjører. Ukjente parametere er feil (med «did you mean» via `difflib`).
-- `check` er scenarioets invariant (se hvert scenario). Kjøres rett etter `apply`.
-  Ikke-tom liste ⇒ intern feil (exit 2), fordi det betyr en bug i DataChaos.
+  scenario kjører. Ukjente parametere er feil (med «did you mean» via `difflib`). Den er
+  idempotent, slik at den oppløste configen i manifestet gir samme kjøring.
+- Engine resolver scenarioene i rekkefølge og legger `schemas_after` fra hvert scenario inn i
+  `ResolveContext` til det neste. Kolonnenavn og typer valideres mot `ctx.schemas`, så et senere
+  scenario ser endringene `schema-drift` gjør (fase 4). Standard er uendret schema.
+- `check` er scenarioets invariant (se hvert scenario). Kjøres rett etter `apply`, med tilstanden
+  før i `ctx.dataset` og etter i `outcome.dataset`. Ikke-tom liste ⇒ intern feil (exit 2), fordi
+  det betyr en bug i DataChaos. Invarianter sjekkes relativt til tilstanden før scenarioet.
+- `rate`, `count` og `allow_overlap` ligger under `params` i configen, som alle andre parametere.
 
 ### 7.2 Utvalg av rader
 
@@ -369,7 +381,7 @@ tidligere (null-setter nøkkelen som nettopp ble duplisert), og ledgeren blir fe
 `chaos-ledger.jsonl`, én linje per endring, sortert på `(scenario_index, table, rid, column)`:
 
 ```json
-{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0-1","source_rid":"o000417","key":{"order_id":"O000417"},"batch":3,"column":null,"before":null,"after":null}
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000001","source_rid":"o000417","key":{"order_id":"O000417"},"batch":3,"column":null,"before":null,"after":null}
 {"scenario_index":1,"scenario":"null-critical-column","table":"orders","action":"set_value","rid":"o000052","key":{"order_id":"O000052"},"batch":0,"column":"customer_id","before":"C000031","after":null}
 ```
 
@@ -394,24 +406,32 @@ inkrementelle modeller. Alle har `rate`/`count` og `allow_overlap` i tillegg til
   `true`; `false` legger kopien i en senere batch).
 - **Transformasjon:** for hver valgt rad, legg til en ny rad med samme nøkkel. Med
   `mutate_non_key` endres én ikke-nøkkel-, ikke-tidskolonne til en annen gyldig verdi.
-  `ingested_at` for kopien: samme som original (+1 s) eller, med `same_batch: false`,
-  i en tilfeldig senere batch.
-- **Invariant:** hver valgt nøkkel forekommer nøyaktig 2 ganger; ingen originalrad endret;
-  `rows_after == rows_before + n`.
+  `ingested_at` for kopien: som originalen +1 s, men uendret hvis +1 s ville krysset batchgrensen
+  eller `as_of`. Med `same_batch: false`: i en tilfeldig senere batch, og rader i siste batch er
+  ikke kandidater (`batches: 1` er valideringsfeil). `mutate_non_key` velger blant ENUM- og
+  ATTRIBUTE-kolonner, ikke FK, og ledgeren viser `column`, `before` og `after` på `insert_row`.
+- **`key_columns`:** må identifisere radene unikt i baseline, ellers feil ved oppstart.
+- **Invariant:** hver valgt nøkkel forekommer nøyaktig 2 ganger (med `allow_overlap`: antallet før
+  pluss antall kopier); ingen originalrad endret; `rows_after == rows_before + n`.
 
 ### 8.2 `null-critical-column`
 
 - **Avslører:** manglende `not_null`, joins som mister rader på NULL. **dbt-test:** `not_null`.
-- **Parametere:** `column` (påkrevd). Rolle KEY er avvist med mindre `allow_key: true`.
+- **Parametere:** `column` (påkrevd). Rolle KEY er avvist med mindre `allow_key: true`. Rolle
+  INGESTION_TIME er alltid avvist, fordi batch utledes fra den. Rader som allerede er NULL er ikke
+  kandidater. Ledgerens `key` viser den opprinnelige verdien.
 - **Transformasjon:** sett verdien til NULL. Kolonnen trenger ikke være nullable i schemaet;
-  poenget er nettopp å bryte det. Manifestet registrerer at kontrakten er brutt.
+  poenget er nettopp å bryte det. Manifestet registrerer at kontrakten er brutt, i `warnings`.
 - **Invariant:** antall NULL i kolonnen øker med `n`; alle andre verdier på berørte rader uendret.
 
 ### 8.3 `invalid-enum`
 
 - **Avslører:** ukjente kategorier som faller ut i `CASE`/mapping. **dbt-test:** `accepted_values`.
 - **Parametere:** `column` (må ha rolle ENUM), `values` (liste, standard `["UNKNOWN"]`),
-  `variant` (`literal` | `case_change` | `whitespace`; `case_change` gir `PAID`, `whitespace` gir `"paid "`).
+  `variant` (`literal` | `case_change` | `whitespace`; `case_change` gir `PAID`, og `no` for en verdi
+  som allerede er store bokstaver; `whitespace` gir `"paid "`). `values` er bare lov med `literal`,
+  og kan ikke inneholde tom streng (NULL i CSV) eller gyldige verdier. Bare rader med gyldig verdi
+  er kandidater.
 - **Invariant:** berørte verdier ∉ `allowed_values`; ingen andre kolonner endret.
 
 ### 8.4 `orphaned-foreign-key`
@@ -563,7 +583,9 @@ mønster som `dgt`). `jsonschema` er dev-avhengighet.
 ### 9.3 Trygg skriving
 
 - Output-mappen må ikke finnes, eller være tom. `--force` er bare lov hvis mappen inneholder
-  et `chaos-manifest.json` fra før (hindrer at noen sletter en vilkårlig mappe).
+  et `chaos-manifest.json` fra før og alle filene i mappen står oppført i det (hindrer at noen
+  sletter en vilkårlig mappe eller egne filer). Den gamle mappen fjernes først når det nye
+  resultatet er ferdig skrevet.
 - Manglende foreldermapper opprettes (`mkdir -p`).
 - Skriv til `<out>.tmp-<run_id>` i samme foreldermappe, rename til slutt. Ved feil fjernes
   temp-mappen. Ingenting skrives utenfor output-mappen, bortsett fra temp-mappen og
@@ -580,7 +602,7 @@ datachaos list-scenarios [--output text|json]
 datachaos describe <scenario> [--output text|json]
 datachaos generate --out DIR [--seed N] [--customers N] [--orders N] [--batches N]
                    [--batch-interval 1d] [--as-of TS] [--format csv|jsonl|both] [--combined]
-datachaos run --config chaos.yml [--out DIR] [--force]
+datachaos run --config chaos.yml --out DIR [--force]
 datachaos run --out DIR --scenario NAME --table T [--param key=value ...] [--seed N] ...
 datachaos inject --input DIR --out DIR --scenario NAME --table T [--param key=value ...]
 datachaos validate DIR [--reproduce] [--output text|json]
@@ -589,6 +611,8 @@ datachaos land DIR --upto-batch K --to LANDING_DIR
 datachaos check-dbt --run DIR --run-results PATH --config chaos.yml [--output text|json]
 ```
 
+- `--out` er alltid påkrevd, også med `--config`. Stien er ikke en del av configen, så `run_id`
+  er uavhengig av hvor resultatet skrives.
 - Flere scenarioer i én kjøring går via config-fila. CLI-varianten av `run` tar ett scenario.
   (ChatGPT-planen viste `--scenario` gjentatt uten måte å gi parametere per scenario.)
 - `--param key=value`: verdi parses som YAML-skalar (`0.02`, `true`, `[a,b]`, `"3d"`).
@@ -635,8 +659,11 @@ expectations:
     failing_tests: ["test.dbt_shop.assert_daily_orders_event_watermark_matches_full*"]
 ```
 
-- Lastes med `yaml.safe_load`. Valideres strengt: ukjente nøkler på alle nivåer er feil med
-  forslag (`difflib`), typer sjekkes, varigheter parses med regex `^\d+(s|m|h|d)$`.
+- Lastes med en `yaml.SafeLoader` som i tillegg avviser dupliserte nøkler. Valideres strengt:
+  ukjente nøkler på alle nivåer er feil med forslag (`difflib`), typer sjekkes, varigheter parses
+  med regex `^\d+(s|m|h|d)$`.
+- `version`, `seed` og `dataset.as_of` er påkrevd, slik at en config alltid er fullstendig. På CLI
+  er standardene `seed` 42 og `as_of` `2026-01-01T00:00:00Z`.
 - Feilmeldinger peker på stien: `scenarios[1].params.delay_max: '2days' is not a duration (use e.g. 2d)`.
 
 ### 11.2 `check-dbt`
@@ -688,8 +715,8 @@ fila ikke er oppdatert. Det samme innholdet vises av `datachaos describe`.
 
 ### 13.3 Golden
 
-`tests/golden/<case>/` med liten config (20 kunder, 50 ordrer, 3 batcher, fast seed) og
-forventede filer. Oppdateres bare eksplisitt med `DATACHAOS_UPDATE_GOLDEN=1 pytest
+`tests/golden/<case>/chaos.yml` med liten config (20 kunder, 50 ordrer, 3 batcher, fast seed) og
+forventede filer i `tests/golden/<case>/expected/`. Oppdateres bare eksplisitt med `DATACHAOS_UPDATE_GOLDEN=1 pytest
 tests/golden`, og diffen skal leses i review. Golden tests kjøres i hele Python-matrisen.
 
 ## 14. Byggefaser for Claude Code

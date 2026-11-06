@@ -1,0 +1,13 @@
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000001","source_rid":"o000008","key":{"order_id":"O000008"},"batch":2,"column":null,"before":null,"after":null}
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000002","source_rid":"o000010","key":{"order_id":"O000010"},"batch":1,"column":null,"before":null,"after":null}
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000003","source_rid":"o000017","key":{"order_id":"O000017"},"batch":2,"column":null,"before":null,"after":null}
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000004","source_rid":"o000029","key":{"order_id":"O000029"},"batch":2,"column":null,"before":null,"after":null}
+{"scenario_index":0,"scenario":"duplicate-business-key","table":"orders","action":"insert_row","rid":"s0000-0000005","source_rid":"o000040","key":{"order_id":"O000040"},"batch":2,"column":null,"before":null,"after":null}
+{"scenario_index":1,"scenario":"null-critical-column","table":"orders","action":"set_value","rid":"o000022","key":{"order_id":"O000022"},"batch":0,"column":"customer_id","before":"C000015","after":null}
+{"scenario_index":1,"scenario":"null-critical-column","table":"orders","action":"set_value","rid":"o000024","key":{"order_id":"O000024"},"batch":1,"column":"customer_id","before":"C000015","after":null}
+{"scenario_index":1,"scenario":"null-critical-column","table":"orders","action":"set_value","rid":"o000034","key":{"order_id":"O000034"},"batch":2,"column":"customer_id","before":"C000005","after":null}
+{"scenario_index":1,"scenario":"null-critical-column","table":"orders","action":"set_value","rid":"o000037","key":{"order_id":"O000037"},"batch":2,"column":"customer_id","before":"C000001","after":null}
+{"scenario_index":1,"scenario":"null-critical-column","table":"orders","action":"set_value","rid":"o000043","key":{"order_id":"O000043"},"batch":2,"column":"customer_id","before":"C000006","after":null}
+{"scenario_index":2,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000013","key":{"order_id":"O000013"},"batch":1,"column":"status","before":"created","after":"UNKNOWN"}
+{"scenario_index":2,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000030","key":{"order_id":"O000030"},"batch":2,"column":"status","before":"created","after":"UNKNOWN"}
+{"scenario_index":2,"scenario":"invalid-enum","table":"orders","action":"set_value","rid":"o000048","key":{"order_id":"O000048"},"batch":2,"column":"status","before":"created","after":"UNKNOWN"}
