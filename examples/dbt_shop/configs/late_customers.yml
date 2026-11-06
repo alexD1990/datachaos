@@ -1,0 +1,15 @@
+version: 1
+seed: 2026
+dataset:
+  as_of: "2026-01-08T00:00:00Z"
+  customers: 40
+  orders: 400
+  batches: 5
+  batch_interval: 1d
+scenarios:
+  - name: late-arriving-data
+    table: customers
+    params: {count: 5, delay_min: 1d, delay_max: 2d}
+expectations:
+  - scenario: late-arriving-data
+    failing_tests: ["test.dbt_shop.assert_fct_orders_incremental_matches_full*"]
